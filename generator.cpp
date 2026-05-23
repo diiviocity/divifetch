@@ -387,24 +387,13 @@ std::string command_execution_output(const char* command_to_exec) {
 void out_write_config_main(std::string config_out_file_path) {
     std::ofstream config_file(config_out_file_path);
 
-    config_file << "; before we begin, ascii escape codes are used here" << "\n"
-                << "; if are not comfortable with working with them, here's a url to my favourite guide on them:" << "\n"
-                << "; https://jakob-bagterp.github.io/colorist-for-python/ansi-escape-codes/" << "\n\n"
+    config_file << ";;;; THE EXAMPLE CONFIG FILE" << "\n\n"
 
-                << ";;;; THE EXAMPLE CONFIG FILE / TUTORIAL" << "\n\n"
+                << "; read the documentation:" << "\n"
+                << "; https://git.divio.city/diviocity/divifetch/wiki" << "\n\n"
 
-                << ";;; a line of the output of the fetch is made up of:" << "\n"
-                << ";     $ART $KEY: $VALUE\n;" << "\n"
-                << "; each of these parts have prefixes and suffixes, which go before and after them" << "\n"
-                << "; the defaults are specified in the config and they can be overriden per-entry" << "\n\n"
-
-                << ";;; the global config" << "\n"
-                << "" << "\n"
-                << "(config (art-width 45) ; the desired width of the ascii art + padding before an entry" << "\n"
-                << "                       ; {pre,suf}fixes are not included in this number" << "\n"
-                << "        (art-file \"ascii/cat.txt\") ; the path to the file containing the ascii art" << "\n"
-                << "                                   ; if file is empty/not found the art will be blank" << "\n"
-                << "   ; the default {pre,suf}fixes for each line of the output (overriddable per-entry (except for the art)" << "\n"
+                << "(config (art-width 45)" << "\n"
+                << "        (art-file \"ascii/cat.txt\")" << "\n"
                 << "        (art-prefix \"\\033[1m\")" << "\n"
                 << "        (art-suffix \"\\033[0m\")" << "\n"
                 << "        (key-prefix \"\\033[1m\\033[34m\")" << "\n"
@@ -412,30 +401,8 @@ void out_write_config_main(std::string config_out_file_path) {
                 << "        (value-prefix \"\")" << "\n"
                 << "        (value-suffix \"\"))\n" << "\n\n"
 
-                << ";;; there are multiple types of entries, which can be boiled down into 2 categories: static and dynamic" << "\n"
-                << "; a static entry has a pre-defined value" << "\n"
-                << "; a dynamic entry determines its value at runtime by executing a function imported from a module" << "\n\n"
-
-                << ";;; types of static entries:\n;" << "\n"
-                << "; there are currently 5 templates for static entries:\n;" << "\n"
-                << "; static: \"the default\"" << "\n"
-                << "; plain: static, without {pre,suf}fixes" << "\n"
-                << "; break: empty space" << "\n"
-                << "; colors_normal: the 8 normal colors of your terminal emulator's colour palette" << "\n"
-                << "; colors_bright: the 8 bright colors of your terminal emulator's colour palette\n;" << "\n"
-                << "; by the way, each one of them can be replicated by manually overriding the {pre,suf}fixes and using ascii escape codes, their only purpose is to make the config file easier to work with" << "\n\n"
-
-                << ";;; types of dynamic entries:\n;" << "\n"
-                << "; you can view the list of supported modules by checking out the list of entries inside the \"modules\" directory\n;" << "\n"
-                << "; if a module that was imported requires an argument, you can pass it through the value field" << "\n\n"
-
-                << "; the default value for the key of an entry is the entry's type with an upper-cased first character" << "\n\n"
-
-                << "(plain divifetch)" << "\n\n"
-
-                << "; another way to do this" << "\n"
-                << "(plain" << "\n"
-                << "    (key ---------))" << "\n\n"
+                << "(plain divifetch)" << "\n"
+                << "(plain ---------)" << "\n"
 
                 << "(static OS \"" << command_execution_output("source /etc/os-release && echo $NAME") << "\")\n\n"
 
@@ -483,7 +450,7 @@ void out_write_help(std::string current_executable_name) {
               << "      -h,  --help                display this help and exit" << "\n"
               << "      -c,  --config <file>       specify the config file (default: config.conf)" << "\n"
               << "      -os, --out-source <file>   specify the output file for source (default: fetch.c)" << "\n" 
-              << "      -oc, --out-config <file>   specify the output file for config (default: config.conf.example)" << "\n"
+              << "      -oc, --out-config <file>   specify the output file for config (default: config.conf.example)" << "\n";
 }
 
 int main(int argc, char* argv[]) {
@@ -515,7 +482,7 @@ int main(int argc, char* argv[]) {
  
     if (subcommand == "config") { out_write_config_main(out_config_file_path); return 0; }
  
-    if (main_command_source) {
+    if (subcommand == "source") {
         std::ofstream fetch_file(out_source_file_path);
  
         std::vector<std::string> out_needed_imports;
