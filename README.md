@@ -33,7 +33,7 @@ cp config.conf.example config.conf
 vi config.conf
 
 # generate the fetch script and run it:
-gcc -O2 -static -s divifetch fetch.c
+gcc -O2 -static -s -o divifetch fetch.c
 ./divifetch
 ```
 
@@ -64,4 +64,4 @@ the concept of a "fetch script" itself is flawed - it implies that trying to opt
 
 one might try to circumvent this by hard-coding values into the config file, but even then the fetch script is still reading a useless config file and assembling every module/entry on the file.
 
-unfortunately for me, i do enjoy the aesthetic value that having something - including a fetch script - on shell startup brings. that led to me creating divifetch.
+unfortunately for me, i do enjoy the aesthetic value that having something (including a fetch script) on shell startup brings. that led to me creating divifetch.
