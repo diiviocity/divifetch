@@ -2,6 +2,8 @@
 
 > *an anti-fetch script generator with mostly hard-coded values, dynamic modules and optimisations*
 
+![diviocity](https://divio.city/toolchain/meow.png)
+
 ## >> WHAT? >>
 
 divifetch is a build-time fetch script compiler.
@@ -37,10 +39,6 @@ gcc -O2 -static -s -o divifetch fetch.c
 ./divifetch
 ```
 
-## >> SCREENSHOT >>
-
-![diviocity](https://divio.city/toolchain/meow.png)
-
 ## >> COMING SOON >>
 
 - more modules
@@ -68,5 +66,10 @@ Mirrors:
 [diviocity](https://git.divio.city/diviocity/divifetch)
 [disroot](https://git.disroot.org/diviocity/divifetch)
 [codeberg](https://codeberg.org/diviocity/divifetch)
-[github](https://github.com/diiviocity/divifetch)
+[git.gay](https://git.gay/diviocity/divifetch)
+[gitea](https://gitea.com/diviocity/divifetch)
+[rocketgit](https://rocketgit.com/user/diviocity/divifetch)
+[salsa](https://salsa.debian.org/diviocity/divifetch)
+[framagit](https://framagit.org/diviocity/divifetch)
 [gitlab](https://gitlab.com/diiviocity/divifetch)
+[github](https://github.com/diiviocity/divifetch)
