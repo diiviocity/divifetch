@@ -18,6 +18,7 @@ unlike other fetch scripts that parse configs and fork processes at every run, d
 - strict no dead code policy (only used modules and headers are included)
 - Unicode and ANSI escape code support
 - easily extensible module system
+- random config switching
 
 ## >> GETTING STARTED >>
 

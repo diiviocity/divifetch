@@ -32,6 +32,17 @@ struct ConfigDefault {
     std::string value_suffix;
 };
 
+struct ConfigSource {
+    std::vector<ConfigEntry> config_entries;
+    ConfigDefault config_default;
+};
+
+struct ConfigSourceNeeded {
+    std::vector<std::string> imports;
+    std::vector<std::string> functions;
+};
+
+
 std::string config_parser_strip_comments(const std::string &line) {
     bool in_string = false;
     for (size_t i = 0; i < line.size(); ++i) {
@@ -111,7 +122,7 @@ void config_parser_unsex_string(std::string& str) {
     std::replace(str.begin(), str.end(), '-', '_');
 }
 
-void parse_config(const std::string filename, ConfigDefault &config_default, std::vector<ConfigEntry> &config_entries) {
+void parse_config(const std::string filename, ConfigSource& current_config_source) {
     std::ifstream file(filename);
     if (!file.is_open()) return;
 
@@ -144,14 +155,14 @@ void parse_config(const std::string filename, ConfigDefault &config_default, std
                         std::string val = form[pos];
                         pos++;
                         if (pos < form.size() && form[pos] == ")") pos++;
-                        config_parser_apply_config_field(config_default, key, val);
+                        config_parser_apply_config_field(current_config_source.config_default, key, val);
                     } else {
                         pos++;
                     }
                 }
             } else if (form.size() >= 3) {
                 config_parser_unsex_string(form[1]);
-                config_parser_apply_config_field(config_default, form[1], form[2]);
+                config_parser_apply_config_field(current_config_source.config_default, form[1], form[2]);
             }
             continue;
         }
@@ -160,11 +171,11 @@ void parse_config(const std::string filename, ConfigDefault &config_default, std
         current_entry.type = form[0];
         current_entry.key = current_entry.type;
         if (!current_entry.key.empty()) current_entry.key[0] = std::toupper(current_entry.key[0]);
-        current_entry.key_prefix = config_default.key_prefix;
-        current_entry.key_suffix = config_default.key_suffix;
+        current_entry.key_prefix = current_config_source.config_default.key_prefix;
+        current_entry.key_suffix = current_config_source.config_default.key_suffix;
         current_entry.value = "";
-        current_entry.value_prefix = config_default.value_prefix;
-        current_entry.value_suffix = config_default.value_suffix;
+        current_entry.value_prefix = current_config_source.config_default.value_prefix;
+        current_entry.value_suffix = current_config_source.config_default.value_suffix;
 
         if (current_entry.type == "break") {
             current_entry.type = "plain";
@@ -211,7 +222,7 @@ void parse_config(const std::string filename, ConfigDefault &config_default, std
             } else { form_pos++; }
         }
 
-        config_entries.push_back(current_entry);
+        current_config_source.config_entries.push_back(current_entry);
     }
 }
 
@@ -237,19 +248,23 @@ bool is_present_in_vector(const std::vector<std::string>& vec, std::string_view 
     return std::find(vec.begin(), vec.end(), target) != vec.end();
 }
 
-void assess_needed_for_modules(std::vector<std::string>& out_needed_imports, std::vector<std::string>& out_needed_functions, const std::vector<ConfigEntry>& config_entries) {
-    out_needed_imports.push_back("stddef.h");
-    out_needed_imports.push_back("stdio.h");
+
+void add_if_is_not_present(std::vector<std::string>& vec, std::string_view target) {
+    if (!is_present_in_vector(vec, target)) vec.push_back(std::string(target));
+}
+
+void assess_needed_for_modules(ConfigSourceNeeded& out_needed, const std::vector<ConfigEntry>& config_entries) {
+    add_if_is_not_present(out_needed.imports, "stddef.h");
+    add_if_is_not_present(out_needed.imports, "stdio.h");
 
     for (size_t i = 0; i < config_entries.size(); i++) {
         if (config_entries[i].type != "static") {
-            if ( !is_present_in_vector(out_needed_functions, config_entries[i].type) ) {
-                out_needed_functions.push_back(config_entries[i].type);
-                std::vector<std::string> current_entry_needed_imports = parse_file_to_vector("modules/" + out_needed_functions.back() + "/imports");
+            if ( !is_present_in_vector(out_needed.functions, config_entries[i].type) ) {
+                out_needed.functions.push_back(config_entries[i].type);
+                std::vector<std::string> current_entry_needed_imports = parse_file_to_vector("modules/" + out_needed.functions.back() + "/imports");
                 for (size_t j = 0; j < current_entry_needed_imports.size(); j++) {
                     std::string current_needed_import = current_entry_needed_imports[j];
-                    if (!is_present_in_vector(out_needed_imports, current_needed_import))
-                        out_needed_imports.push_back(current_needed_import);
+                    add_if_is_not_present(out_needed.imports, current_needed_import);
                 }
             }
         }
@@ -257,12 +272,12 @@ void assess_needed_for_modules(std::vector<std::string>& out_needed_imports, std
 }
 
 
-void out_write_needed_for_modules(std::ofstream& fetch_file, std::vector<std::string>& out_needed_imports, std::vector<std::string>& out_needed_functions) {
-    for (size_t i = 0; i < out_needed_imports.size(); i++) {
-        fetch_file << "#include <" << out_needed_imports[i] << ">" << "\n";
+void out_write_needed_for_modules(std::ofstream& fetch_file, ConfigSourceNeeded& out_needed) {
+    for (size_t i = 0; i < out_needed.imports.size(); i++) {
+        fetch_file << "#include <" << out_needed.imports[i] << ">" << "\n";
     }
-    for (size_t i = 0; i < out_needed_functions.size(); i++) {
-        parse_file_to_out(fetch_file, "modules/" + out_needed_functions[i] + "/module.c");
+    for (size_t i = 0; i < out_needed.functions.size(); i++) {
+        parse_file_to_out(fetch_file, "modules/" + out_needed.functions[i] + "/module.c");
     }
 }
 
@@ -297,32 +312,27 @@ size_t utf8_display_width(const std::string& s) {
     return width;
 }
 
-void out_write_fetch_main(std::ofstream& fetch_file, 
-                          const ConfigDefault& config_default,
-                          const std::vector<ConfigEntry>& config_entries) {
-    std::vector<std::string> art_lines_original = parse_file_to_vector(config_default.art_file);
+void out_write_fetch_print(std::ofstream& fetch_file, const ConfigSource& current_config_source) {
+    std::vector<std::string> art_lines_original = parse_file_to_vector(current_config_source.config_default.art_file);
 
-    while (config_entries.size() > art_lines_original.size()) {
-        art_lines_original.push_back(std::string(config_default.art_width, ' '));
+    while (current_config_source.config_entries.size() > art_lines_original.size()) {
+        art_lines_original.push_back(std::string(current_config_source.config_default.art_width, ' '));
     }
 
     std::vector<std::string> art_lines;
 
     for (size_t i = 0; i < art_lines_original.size(); i++) {
         size_t art_line_width = utf8_display_width(art_lines_original[i]);
-        size_t art_padding_width = ( art_line_width < config_default.art_width ) ? config_default.art_width - art_line_width : 0;
+        size_t art_padding_width = ( art_line_width < current_config_source.config_default.art_width ) ? current_config_source.config_default.art_width - art_line_width : 0;
 
         art_lines.push_back(
-            config_default.art_prefix
+            current_config_source.config_default.art_prefix
             + art_lines_original[i]
             + std::string(art_padding_width, ' ')
-            + config_default.art_suffix
+            + current_config_source.config_default.art_suffix
         );
     }
     
-    fetch_file << "int main() {" << "\n" 
-               << "    char _buf[256];" << "\n";
-
     auto flush_static_batch = [&](std::string& batch) {
         if (!batch.empty()) {
             fetch_file << "    fputs(\"" << batch << "\", stdout);" << "\n";
@@ -332,45 +342,68 @@ void out_write_fetch_main(std::ofstream& fetch_file,
 
     std::string static_batch;
 
-    for (size_t i = 0; i < config_entries.size(); i++) {
-        if (config_entries[i].type == "static") {
+    for (size_t i = 0; i < current_config_source.config_entries.size(); i++) {
+        if (current_config_source.config_entries[i].type == "static") {
             static_batch += make_main_function_line(
                 art_lines[i],
-                config_entries[i].key,
-                config_entries[i].key_prefix,
-                config_entries[i].key_suffix,
-                config_entries[i].value,
-                config_entries[i].value_prefix,
-                config_entries[i].value_suffix
+                current_config_source.config_entries[i].key,
+                current_config_source.config_entries[i].key_prefix,
+                current_config_source.config_entries[i].key_suffix,
+                current_config_source.config_entries[i].value,
+                current_config_source.config_entries[i].value_prefix,
+                current_config_source.config_entries[i].value_suffix
             );
         } else {
             flush_static_batch(static_batch);
-            std::string module_arg = config_entries[i].value.size() > 0
-                ? "\"" + config_entries[i].value + "\", _buf, sizeof(_buf)"
+            std::string module_arg = current_config_source.config_entries[i].value.size() > 0
+                ? "\"" + current_config_source.config_entries[i].value + "\", _buf, sizeof(_buf)"
                 : "_buf, sizeof(_buf)";
             fetch_file << "    printf(\"" << make_main_function_line(
                 art_lines[i],
-                config_entries[i].key,
-                config_entries[i].key_prefix,
-                config_entries[i].key_suffix,
+                current_config_source.config_entries[i].key,
+                current_config_source.config_entries[i].key_prefix,
+                current_config_source.config_entries[i].key_suffix,
                 "%s",
-                config_entries[i].value_prefix,
-                config_entries[i].value_suffix
-            ) << "\", " << config_entries[i].type << "_module_preset(" << module_arg << "));" << "\n";
+                current_config_source.config_entries[i].value_prefix,
+                current_config_source.config_entries[i].value_suffix
+            ) << "\", " << current_config_source.config_entries[i].type << "_module_preset(" << module_arg << "));" << "\n";
         }
     }
 
-    if (art_lines_original.size() > config_entries.size()) {
-        for (size_t i = config_entries.size(); i < art_lines_original.size(); i++) {
+    if (art_lines_original.size() > current_config_source.config_entries.size()) {
+        for (size_t i = current_config_source.config_entries.size(); i < art_lines_original.size(); i++) {
             static_batch += art_lines[i] + "\\n";
         }
     }
 
-    flush_static_batch(static_batch);
+    flush_static_batch(static_batch);    
+}
+
+void out_write_fetch_main(std::ofstream& fetch_file, const std::vector<ConfigSource>& configs_sources_full) {    
+    fetch_file << "int main() {" << "\n" 
+               << "    char _buf[256];" << "\n";
+    
+    if (configs_sources_full.size() == 1) {
+        out_write_fetch_print(fetch_file, configs_sources_full[0]);
+    } else {
+        fetch_file << "    struct timespec ts;" << "\n"
+                   << "    clock_gettime(CLOCK_REALTIME, &ts);" << "\n"
+                   << "    srand(ts.tv_nsec);" << "\n"
+                   << "    int chosen_random_config = rand() % " << configs_sources_full.size() << ";" << "\n"
+                   << "    switch(chosen_random_config) {" << "\n";
+
+        for (size_t i = 0; i < configs_sources_full.size(); i++) {
+            fetch_file << "    case " << i << ":" << "\n";            
+            out_write_fetch_print(fetch_file, configs_sources_full[i]);
+            fetch_file << "    break;" << "\n";
+        }
+
+        fetch_file << "    }" << "\n";
+    }
 
     fetch_file << "    return 0;" << "\n"
                << "}" << "\n";
-    
+
 }
 
 std::string command_execution_output(const char* command_to_exec) {
@@ -448,17 +481,17 @@ void out_write_help(std::string current_executable_name) {
               << "when no command is specified the default behaviour is to run source" << "\n"
               << "options:" << "\n"
               << "      -h,  --help                display this help and exit" << "\n"
-              << "      -c,  --config <file>       specify the config file (default: config.conf)" << "\n"
+              << "      -c,  --config <file>       specify a config file (default: config.conf)" << "\n"
               << "      -os, --out-source <file>   specify the output file for source (default: fetch.c)" << "\n" 
               << "      -oc, --out-config <file>   specify the output file for config (default: config.conf.example)" << "\n";
 }
 
 int main(int argc, char* argv[]) {
-    std::string config_file_path = "config.conf";
+    std::vector<std::string> config_file_paths;
     std::string out_config_file_path = "config.conf.example";
     std::string out_source_file_path = "fetch.c";
 
-    std::string subcommand;
+    std::string subcommand = "source";
  
     for (int i = 1; i < argc; i++) {
         std::string arg = argv[i];
@@ -467,7 +500,7 @@ int main(int argc, char* argv[]) {
         } else if (arg == "source" || arg == "config") {
             subcommand = arg;
         } else if (arg == "-c" || arg == "--config") {
-            if (i+1 < argc) config_file_path = argv[++i];
+            if (i+1 < argc) config_file_paths.push_back(argv[++i]);
             else { std::cerr << "error: " << arg << " requires an argument\n"; return 1; }
         } else if (arg == "-os" || arg == "--out-source") {
             if (i+1 < argc) out_source_file_path = argv[++i];
@@ -479,26 +512,36 @@ int main(int argc, char* argv[]) {
             std::cerr << "warning: unknown argument '" << arg << "', ignoring\n";
         }
     }
+
+    if (!config_file_paths.size()) config_file_paths.push_back("config.conf");
  
     if (subcommand == "config") { out_write_config_main(out_config_file_path); return 0; }
  
     if (subcommand == "source") {
         std::ofstream fetch_file(out_source_file_path);
- 
-        std::vector<std::string> out_needed_imports;
-        std::vector<std::string> out_needed_functions;
-        std::vector<ConfigEntry> config_entries;
-        ConfigDefault config_default;
- 
-        parse_config(config_file_path, config_default, config_entries);
-        assess_needed_for_modules(out_needed_imports, out_needed_functions, config_entries);
-        out_write_needed_for_modules(fetch_file, out_needed_imports, out_needed_functions);
-        out_write_fetch_main(fetch_file, config_default, config_entries);
+        std::vector<ConfigSource> configs_sources;
+        ConfigSourceNeeded out_needed;
+        
+        for (size_t i = 0; i < config_file_paths.size(); i++) {
+            ConfigSource current_config_source;
+            parse_config(config_file_paths[i], current_config_source);
+            assess_needed_for_modules(out_needed, current_config_source.config_entries);
+            configs_sources.push_back(current_config_source);
+        }
+        
+        if (config_file_paths.size() > 1) {
+            add_if_is_not_present(out_needed.imports, "stdlib.h");
+            add_if_is_not_present(out_needed.imports, "time.h");
+        }
+        out_write_needed_for_modules(fetch_file, out_needed);
+        out_write_fetch_main(fetch_file, configs_sources);
  
         fetch_file.close();
         std::cout << "generated the source code for the fetch program " << out_source_file_path << "\n";
+        return 0;
     }
     
     return 0;
 }
+
 
