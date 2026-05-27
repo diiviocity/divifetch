@@ -1,3 +1,4 @@
+#include "module.h"
 static int terminal_module_proc_stat(pid_t pid, char* comm, size_t comm_size, pid_t* ppid) {
     char path[64];
     snprintf(path, sizeof(path), "/proc/%d/stat", (int)pid);
@@ -67,7 +68,7 @@ static const char* terminal_module_pretty(const char* comm) {
             return map[i].name;
     return NULL;
 }
-char* terminal_module_preset(char* result, size_t result_size) {
+const char* terminal_module_preset(char* result, size_t result_size) {
     static const struct { const char* env; const char* name; } hints[] = {
         { "KITTY_PID",             "kitty"         },
         { "ALACRITTY_SOCKET",      "alacritty"     },

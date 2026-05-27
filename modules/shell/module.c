@@ -1,3 +1,4 @@
+#include "module.h"
 static int shell_module_proc_stat(pid_t pid, char* comm, size_t comm_size, pid_t* ppid) {
     char path[64];
     snprintf(path, sizeof(path), "/proc/%d/stat", (int)pid);
@@ -43,7 +44,7 @@ static void shell_module_extract_ver(char* s) {
     *p = '\0';
     memmove(s, start, strlen(start) + 1);
 }
-char* shell_module_preset(char* result, size_t result_size) {
+const char* shell_module_preset(char* result, size_t result_size) {
     pid_t pid = getppid();
     char comm[64] = "";
     pid_t ppid;

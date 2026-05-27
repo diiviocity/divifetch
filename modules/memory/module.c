@@ -1,4 +1,5 @@
-char* memory_module_preset(char* result, size_t result_size) {
+#include "module.h"
+const char* memory_module_preset(char* result, size_t result_size) {
     FILE* f = fopen("/proc/meminfo", "r");
     if (!f) { snprintf(result, result_size, "?"); return result; } 
     unsigned long long mem_total = 0, mem_available = 0, mem_free = 0, buffers = 0, cached = 0, shmem = 0, s_reclaimable = 0;

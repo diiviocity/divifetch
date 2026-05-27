@@ -1,4 +1,5 @@
-char* packages_emerge_module_preset(char* result, size_t result_size) {
+#include "module.h"
+const char* packages_emerge_module_preset(char* result, size_t result_size) {
     DIR* cat_dir = opendir("/var/db/pkg");
     if (!cat_dir) { snprintf(result, result_size, "?"); return result; }
     int count = 0;

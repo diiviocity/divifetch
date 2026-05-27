@@ -15,10 +15,10 @@ unlike other fetch scripts that parse configs and fork processes at every run, d
 ## >> FEATURES >>
 
 - everything is hard-coded and statically batched
-- strict no dead code policy (only used modules and headers are included)
-- Unicode and ANSI escape code support
+- strict no dead code policy
+- runtime dependency-free due to static linking
 - easily extensible module system
-- random config switching
+- Unicode and ANSI escape code support
 
 ## >> GETTING STARTED >>
 
@@ -35,9 +35,11 @@ g++ -std=c++17 -o generator generator.cpp
 cp config.conf.example config.conf
 vi config.conf
 
-# compile the fetch script and run it:
-gcc -O2 -static -s -o divifetch fetch.c
-./divifetch
+# generate the source code and Makefile:
+./generator source make
+
+# build the fetch script:
+make
 ```
 
 ## >> COMING SOON >>
@@ -46,13 +48,13 @@ gcc -O2 -static -s -o divifetch fetch.c
 
 - improved error handling
 
-- proper config format for modules
+- configuration for the Makefile generator
 
 - bindings for other programming languages in modules
 
 ## >> MOTIVATION >>
 
-divifetch is inspired by [nofetch](https://github.com/0xCUB3/nofetch), the world's fastest fetch script ever made. according to its' author:
+divifetch is inspired by [nofetch](https://github.com/0xCUB3/nofetch), the world's fastest fetch script ever made. according to its author:
 > fetch scripts are dumb and overrated and are in every r/unixporn post
 
 and i agree with him.
@@ -74,3 +76,4 @@ Mirrors:
 [framagit](https://framagit.org/diviocity/divifetch)
 [gitlab](https://gitlab.com/diiviocity/divifetch)
 [github](https://github.com/diiviocity/divifetch)
+

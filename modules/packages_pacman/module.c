@@ -1,4 +1,5 @@
-char* packages_pacman_module_preset(char* result, size_t result_size) {
+#include "module.h"
+const char* packages_pacman_module_preset(char* result, size_t result_size) {
     DIR* dir = opendir("/var/lib/pacman/local");
     if (!dir) { snprintf(result, result_size, "?"); return result; }
     int count = 0;

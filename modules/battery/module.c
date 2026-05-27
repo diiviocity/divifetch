@@ -1,4 +1,5 @@
-char* battery_module_preset(char* result, size_t result_size) {
+#include "module.h"
+const char* battery_module_preset(char* result, size_t result_size) {
     DIR* dir = opendir("/sys/class/power_supply");
     if (!dir) { snprintf(result, result_size, "?"); return result; }
     struct dirent* e;

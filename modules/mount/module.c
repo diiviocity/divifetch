@@ -1,3 +1,4 @@
+#include "module.h"
 static void mount_module_format_size(unsigned long long bytes, char* out, size_t out_size) {
     const char* units[] = { " B", " KiB", " MiB", " GiB", " TiB" };
     int unit_index = 0;
@@ -5,7 +6,7 @@ static void mount_module_format_size(unsigned long long bytes, char* out, size_t
     while (size >= 1024.0 && unit_index < 4) { size /= 1024.0; unit_index++; }
     snprintf(out, out_size, "%.1f%s", size, units[unit_index]);
 }
-char* mount_module_preset(const char* path, char* result, size_t result_size) {
+const char* mount_module_preset(const char* path, char* result, size_t result_size) {
     struct statvfs stat;
     if (statvfs(path, &stat) != 0) { snprintf(result, result_size, "?"); return result; }
     unsigned long long total = (unsigned long long)stat.f_blocks * stat.f_frsize;

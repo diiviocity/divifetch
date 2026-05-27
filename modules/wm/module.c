@@ -1,3 +1,4 @@
+#include "module.h"
 static const char* wm_module_known_wms[] = { "sway", "hyprland", "wayfire", "river", "dwm", "i3", "bspwm", "herbstluftwm", "awesome", "xmonad", "openbox", "fluxbox", "icewm", "jwm", "mutter", "kwin_wayland",  "kwin_x11", "kwin", "muffin", "marco", "metacity", "xfwm4", "compiz",  "enlightenment", "lxqt-session", "plasmashell", NULL };
 static int wm_module_try_proc(char* out, size_t out_size) {
     DIR* dir = opendir("/proc");
@@ -32,7 +33,7 @@ static int wm_module_try_proc(char* out, size_t out_size) {
     closedir(dir);
     return 0;
 }
-char* wm_module_preset(char* result, size_t result_size) {
+const char* wm_module_preset(char* result, size_t result_size) {
     const char* env_vars[] = {"XDG_CURRENT_DESKTOP", "XDG_SESSION_DESKTOP", "CURRENT_DESKTOP", "SESSION_DESKTOP", "DESKTOP_SESSION", NULL};
     for (int i = 0; env_vars[i]; i++) {
         const char* val = getenv(env_vars[i]);

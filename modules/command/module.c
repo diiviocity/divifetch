@@ -1,4 +1,5 @@
-char* command_module_preset(const char* command_to_exec, char* result, size_t result_size) {
+#include "module.h"
+const char* command_module_preset(const char* command_to_exec, char* result, size_t result_size) {
     FILE* pipe = popen(command_to_exec, "r");
     if (!pipe) {
         snprintf(result, result_size, "?");
