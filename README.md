@@ -24,7 +24,7 @@ unlike other fetch scripts that parse configs and fork processes at every run, d
 
 ```shell
 # clone the repo:
-git clone https://git.divio.city/diviocity/divifetch.git
+git clone https://git.divio.city/me/divifetch.git
 cd divifetch
 
 # compile the generator:
@@ -66,7 +66,7 @@ one might try to circumvent this by hard-coding values into the config file, but
 unfortunately for me, i do enjoy the aesthetic value that having something (including a fetch script) on shell startup brings. that led to me creating divifetch.
 
 Mirrors:
-[diviocity](https://git.divio.city/diviocity/divifetch)
+[diviocity](https://git.divio.city/me/divifetch)
 [disroot](https://git.disroot.org/diviocity/divifetch)
 [codeberg](https://codeberg.org/diviocity/divifetch)
 [git.gay](https://git.gay/diviocity/divifetch)
