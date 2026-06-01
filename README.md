@@ -2,7 +2,7 @@
 
 > *an anti-fetch script generator with mostly hard-coded values, dynamic modules and optimisations*
 
-![diviocity](https://divio.city/toolchain/meow.png)
+![diviocity](screenshots/diviocity.png)
 
 ## >> WHAT? >>
 
@@ -51,6 +51,10 @@ make
 - configuration for the Makefile generator
 
 - bindings for other programming languages in modules
+
+## >> SCREENSHOTS >>
+
+can be found [here](screenshots/README.md)
 
 ## >> MOTIVATION >>
 
