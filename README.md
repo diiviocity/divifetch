@@ -18,6 +18,8 @@ unlike other fetch scripts that parse configs and fork processes at every run, d
 - strict no dead code policy
 - runtime dependency-free due to static linking
 - easily extensible module system
+- polyglot module support
+- multi-config random selection
 - Unicode and ANSI escape code support
 
 ## >> GETTING STARTED >>
@@ -31,8 +33,7 @@ cd divifetch
 g++ -std=c++17 -o generator generator.cpp 
 
 # generate, copy and edit the example config file:
-./generator config
-cp config.conf.example config.conf
+./generator config -oc config.conf
 vi config.conf
 
 # generate the source code and Makefile:
@@ -46,11 +47,9 @@ make
 
 - more modules
 
+- overrides per module.conf
+
 - improved error handling
-
-- configuration for the Makefile generator
-
-- bindings for other programming languages in modules
 
 ## >> SCREENSHOTS >>
 
