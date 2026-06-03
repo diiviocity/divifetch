@@ -242,7 +242,7 @@ void parse_fetch_config(const std::string filename, ConfigSource& current_config
     }
 }
 
-void parse_make_config(const std::string filename, std::map<std::string, MakeTemplate>& templates) {
+void parse_make_templates_config(const std::string filename, std::map<std::string, MakeTemplate>& templates) {
     std::ifstream file(filename);
     if (!file.is_open()) print_error("couldn't open make config file '" + filename + "'");
 
@@ -288,6 +288,69 @@ void parse_make_config(const std::string filename, std::map<std::string, MakeTem
         }
 
         templates[lang] = tmpl;
+    }
+}
+
+void parse_make_module_config(const std::string filename, std::map<std::string, MakeTemplate>& templates, MakeTemplate& tmpl) {
+    std::ifstream file(filename);
+    if (!file.is_open()) print_error("couldn't open module config file '" + filename + "'");
+
+    std::string source_config;
+    std::string line;
+    while (std::getline(file, line))
+        source_config += config_parser_strip_comments(line) + ' ';
+
+    std::vector<std::string> tokens = config_parser_tokenizer(source_config);
+    size_t idx = 0;
+
+    std::string lang = "c";
+
+    while (idx < tokens.size()) {
+        std::vector<std::string> form = config_parser_form_reader(tokens, idx);
+        if (form.empty()) break;
+
+        undash_string(form[0]);
+
+        if (form[0] == "language" && form.size() >= 2) {
+            lang = form[1];
+        }
+    }
+
+    if (templates.find(lang) == templates.end())
+        print_error("no template '" + lang + "' in make.conf (referenced in '" + filename + "')");
+
+    tmpl = templates[lang];
+
+    idx = 0;
+    while (idx < tokens.size()) {
+        std::vector<std::string> form = config_parser_form_reader(tokens, idx);
+        if (form.empty()) break;
+
+        undash_string(form[0]);
+
+        if (form[0] != "template") continue;
+
+        size_t form_pos = 1;
+        while (form_pos < form.size()) {
+            if (form[form_pos] == "(") {
+                form_pos++;
+                if (form_pos >= form.size()) break;
+                std::string key = form[form_pos];
+                undash_string(key);
+                form_pos++;
+                if (form_pos >= form.size()) break;
+                std::string val = form[form_pos];
+                form_pos++;
+                if (form_pos < form.size() && form[form_pos] == ")") form_pos++;
+
+                if      (key == "source_file")      tmpl.source_file      = val;
+                else if (key == "command")          tmpl.command          = val;
+                else if (key == "linker_flags")     tmpl.linker_flags     = val;
+                else if (key == "object_extension") tmpl.object_extension = val;
+                else if (key == "archive")          tmpl.archive          = val;
+                else print_warning("unknown template field '" + key + "' in '" + filename + "'");
+            } else { form_pos++; }
+        }
     }
 }
 
@@ -511,7 +574,7 @@ void output_example_config(std::string config_out_file_path) {
 void output_makefile(std::ofstream& make_file, std::string& make_config_file_path, ConfigSourceNeeded& out_needed, const std::string& out_source_file_path) {
     std::map<std::string, MakeTemplate> templates;
 
-    parse_make_config(make_config_file_path, templates);
+    parse_make_templates_config(make_config_file_path, templates);
 
     make_file << "DESTDIR = /usr/local/bin" << "\n"
               << "TARGET  = divifetch" << "\n\n"
@@ -539,33 +602,20 @@ void output_makefile(std::ofstream& make_file, std::string& make_config_file_pat
     std::string lib_deps, link_objs, all_linker_flags;
 
     for (size_t i = 0; i < out_needed.functions.size(); i++) {
-        std::string lang = "c";
+        MakeTemplate current_tmpl;
+        
+        parse_make_module_config("modules/"+out_needed.functions[i]+"/module.conf", templates, current_tmpl);
 
-        std::ifstream mf("modules/" + out_needed.functions[i] + "/module.conf");
-        if (mf.is_open()) {
-            std::string src, line;
-            while (std::getline(mf, line)) src += config_parser_strip_comments(line) + ' ';
-            auto tokens = config_parser_tokenizer(src);
-            size_t idx = 0;
-            while (idx < tokens.size()) {
-                auto form = config_parser_form_reader(tokens, idx);
-                if (form.empty()) break;
-                if (form[0] == "language" && form.size() >= 2) lang = form[1];
-            }
-        }
 
-        if (templates.find(lang) == templates.end())
-            print_error("no template '" + lang + "' in make.conf (needed by module '" + out_needed.functions[i] + "')");
-
-        std::string src = "modules/" + out_needed.functions[i] + "/" + templates[lang].source_file;
-        std::string obj = "build/modules/" + out_needed.functions[i] + "/module" + templates[lang].object_extension;
+        std::string src = "modules/" + out_needed.functions[i] + "/" + current_tmpl.source_file;
+        std::string obj = "build/modules/" + out_needed.functions[i] + "/module" + current_tmpl.object_extension;
         std::string lib = "build/lib" + out_needed.functions[i] + ".a";
 
         make_file << obj << ": " << src << " | build\n"
                   << "\tmkdir -p build/modules/" << out_needed.functions[i] << "\n"
-                  << "\t" << templates[lang].command << "\n\n";
+                  << "\t" << current_tmpl.command << "\n\n";
 
-        if (templates[lang].archive == "yes") {
+        if (current_tmpl.archive == "yes") {
             make_file << lib << ": " << obj << "\n"
                       << "\tar rcs $@ $^" << "\n\n";
             lib_deps += " " + lib;
@@ -575,8 +625,8 @@ void output_makefile(std::ofstream& make_file, std::string& make_config_file_pat
             link_objs += " " + obj;
         }
 
-        if (!templates[lang].linker_flags.empty())
-            all_linker_flags += " " + templates[lang].linker_flags;
+        if (!current_tmpl.linker_flags.empty())
+            all_linker_flags += " " + current_tmpl.linker_flags;
     }
 
     make_file << "$(TARGET): " << out_source_file_path << lib_deps << "\n"

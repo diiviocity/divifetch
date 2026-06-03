@@ -47,9 +47,9 @@ make
 
 - more modules
 
-- overrides per module.conf
-
 - improved error handling
+
+- build-time executable static modules
 
 ## >> SCREENSHOTS >>
 
