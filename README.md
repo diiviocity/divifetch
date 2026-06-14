@@ -30,7 +30,8 @@ git clone https://git.divio.city/me/divifetch.git
 cd divifetch
 
 # compile the generator:
-g++ -std=c++17 -o generator generator.cpp 
+cd src
+make && cd ..
 
 # generate, copy and edit the example config file:
 ./generator config -oc config.conf
