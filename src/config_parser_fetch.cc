@@ -3,7 +3,9 @@
 #include "includes/error.h"
 
 void fetch_config_parser_apply_config_field(FetchConfigDefault &config_default, const std::string &key, const std::string &val) {
-    if      (key == "art_width")    config_default.art_width    = string_to_int(val);
+    if      (key == "art_width")    config_default.art_width    = atoi(val.c_str());
+    else if (key == "execute")      config_default.execute      = val;
+    else if (key == "buffer_size")  config_default.buffer_size  = atoi(val.c_str());
     else if (key == "art_file")     config_default.art_file     = val;
     else if (key == "art_prefix")   config_default.art_prefix   = val;
     else if (key == "art_suffix")   config_default.art_suffix   = val;
@@ -11,6 +13,7 @@ void fetch_config_parser_apply_config_field(FetchConfigDefault &config_default, 
     else if (key == "key_suffix")   config_default.key_suffix   = val;
     else if (key == "value_prefix") config_default.value_prefix = val;
     else if (key == "value_suffix") config_default.value_suffix = val;
+    else if (key == "build_time")   config_default.build_time   = val;
 }
 
 void fetch_config_parser_apply_entry_field(FetchConfigEntry &config_entry, const std::string &key, const std::string &val) {
@@ -20,11 +23,15 @@ void fetch_config_parser_apply_entry_field(FetchConfigEntry &config_entry, const
     else if (key == "value")        config_entry.value        = val;
     else if (key == "value_prefix") config_entry.value_prefix = val;
     else if (key == "value_suffix") config_entry.value_suffix = val;
+    else if (key == "build_time")   config_entry.build_time   = val;
 }
 
 void parse_fetch_config(const std::string filename, ConfigSource& current_config_source) {
     std::ifstream file(filename.c_str());
     if (!file.is_open()) print_error("couldn't open config file '" + filename + "'");
+
+    current_config_source.config_default.buffer_size = 128;
+    current_config_source.config_default.art_width = 40;
 
     std::string source_config;
     std::string line;
@@ -66,7 +73,7 @@ void parse_fetch_config(const std::string filename, ConfigSource& current_config
             }
             continue;
         }
-        
+
         FetchConfigEntry current_entry;
         current_entry.type = form[0];
         current_entry.key = current_entry.type;
@@ -76,6 +83,7 @@ void parse_fetch_config(const std::string filename, ConfigSource& current_config
         current_entry.value = "";
         current_entry.value_prefix = current_config_source.config_default.value_prefix;
         current_entry.value_suffix = current_config_source.config_default.value_suffix;
+        current_entry.build_time = current_config_source.config_default.build_time;
 
         if (current_entry.type == "break") {
             current_entry.type = "plain";
@@ -116,15 +124,16 @@ void parse_fetch_config(const std::string filename, ConfigSource& current_config
 
         while (form_pos < form.size()) {
             if (form[form_pos] == "(") {
-                form_pos++; 
+                form_pos++;
                 if (form_pos >= form.size()) break;
-                std::string field = form[form_pos];
-                form_pos++; 
+                std::string key = form[form_pos];
+                form_pos++;
                 if (form_pos >= form.size()) break;
                 std::string val = form[form_pos];
-                form_pos++; 
+                form_pos++;
                 if (form_pos < form.size() && form[form_pos] == ")") form_pos++;
-                fetch_config_parser_apply_entry_field(current_entry, field, val);
+                undash_string(key);
+                fetch_config_parser_apply_entry_field(current_entry, key, val);
             } else { form_pos++; }
         }
 

@@ -12,9 +12,12 @@ struct FetchConfigEntry {
     std::string value;
     std::string value_prefix;
     std::string value_suffix;
+    std::string build_time;
 };
 
 struct FetchConfigDefault {
+    int buffer_size;
+    std::string execute;
     int art_width;
     std::string art_file;
     std::string art_prefix;
@@ -25,6 +28,7 @@ struct FetchConfigDefault {
     std::string value;
     std::string value_prefix;
     std::string value_suffix;
+    std::string build_time;
 };
 
 struct ConfigSource {
@@ -32,8 +36,17 @@ struct ConfigSource {
     FetchConfigDefault config_default;
 };
 
+struct FetchDefenition {
+    int id;
+    std::string execute;
+};
+
 struct ConfigSourceNeeded {
-    std::vector<std::string> functions;
+    std::vector<std::string> imports;
+    std::vector<FetchDefenition> defenitions;
+    std::vector<std::string> functions_all;
+    std::vector<std::string> functions_runtime;
+    std::vector<std::string> functions_buildtime;
 };
 
 void fetch_config_parser_apply_config_field(FetchConfigDefault &config_default, const std::string &key, const std::string &val);

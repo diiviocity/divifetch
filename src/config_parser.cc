@@ -4,13 +4,6 @@ void undash_string(std::string& str) {
     std::replace(str.begin(), str.end(), '-', '_');
 }
 
-int string_to_int(const std::string& str) {
-    std::istringstream iss(str);
-    int result;
-    iss >> result;
-    return result;
-}
-
 std::string config_parser_strip_comments(const std::string &line) {
     bool in_string = false;
     for (size_t i = 0; i < line.size(); ++i) {
