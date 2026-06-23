@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 200809L
 #include "module.h"
 static int shell_module_proc_stat(pid_t pid, char* comm, size_t comm_size, pid_t* ppid) {
     char path[64];
@@ -20,7 +21,8 @@ static int shell_module_proc_stat(pid_t pid, char* comm, size_t comm_size, pid_t
 }
 static int shell_module_is_shell(const char* name) {
     static const char* shells[] = {"sh", "ash", "bash", "zsh", "ksh", "mksh", "csh", "tcsh", "fish", "dash", "nu", "elvish", "pwsh", NULL};
-    for (int i = 0; shells[i]; i++)
+    int i;
+    for (i = 0; shells[i]; i++)
         if (strcmp(name, shells[i]) == 0) return 1;
     return 0;
 }
@@ -48,7 +50,8 @@ const char* shell_module_preset(char* result, size_t result_size) {
     pid_t pid = getppid();
     char comm[64] = "";
     pid_t ppid;
-    for (int depth = 0; pid > 1 && depth < 16; depth++) {
+    int depth;
+    for (depth = 0; pid > 1 && depth < 16; depth++) {
         if (shell_module_proc_stat(pid, comm, sizeof(comm), &ppid) != 0) break;
         if (shell_module_is_shell(comm)) break;
         comm[0] = '\0';

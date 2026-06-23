@@ -6,5 +6,6 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <stdio.h>
+#include <stdbool.h>
 const char *terminal_module_preset(char *buf, size_t buf_size);
 #endif

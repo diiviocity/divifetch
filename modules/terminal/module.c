@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 200809L
 #include "module.h"
 static int terminal_module_proc_stat(pid_t pid, char* comm, size_t comm_size, pid_t* ppid) {
     char path[64];
@@ -20,7 +21,8 @@ static int terminal_module_proc_stat(pid_t pid, char* comm, size_t comm_size, pi
 }
 static int terminal_module_is_skip(const char* name) {
     static const char* skip[] = {"sh", "ash", "bash", "zsh", "ksh", "mksh", "csh", "tcsh", "fish", "dash", "nu", "elvish", "pwsh", "sudo", "su", "login", "make", NULL};
-    for (int i = 0; skip[i]; i++)
+    int i;
+    for (i = 0; skip[i]; i++)
         if (strcmp(name, skip[i]) == 0) return 1;
     return 0;
 }
@@ -63,7 +65,8 @@ static const char* terminal_module_pretty(const char* comm) {
         { "ratty",           "Ratty"          },
         { NULL, NULL }
     };
-    for (int i = 0; map[i].proc; i++)
+    int i;
+    for (i = 0; map[i].proc; i++)
         if (strncmp(comm, map[i].proc, strlen(map[i].proc)) == 0)
             return map[i].name;
     return NULL;
@@ -80,13 +83,15 @@ const char* terminal_module_preset(char* result, size_t result_size) {
         { NULL, NULL }
     };
     char comm[64] = "";
-    for (int i = 0; hints[i].env; i++) {
+    int i;
+    for (i = 0; hints[i].env; i++) {
         if (getenv(hints[i].env)) { snprintf(comm, sizeof(comm), "%s", hints[i].name); break; }
     }
     if (!comm[0]) {
         pid_t pid = getppid();
         pid_t ppid;
-        for (int depth = 0; pid > 1 && depth < 32; depth++) {
+        int depth;
+        for (depth = 0; pid > 1 && depth < 32; depth++) {
             if (terminal_module_proc_stat(pid, comm, sizeof(comm), &ppid) != 0) break;
             if (!terminal_module_is_skip(comm)) break;
             comm[0] = '\0';

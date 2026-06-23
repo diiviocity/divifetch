@@ -1,4 +1,12 @@
 #include "module.h"
+static int wm_module_strcasecmp(const char* a, const char* b) {
+    while (*a && *b) {
+        int d = tolower((unsigned char)*a) - tolower((unsigned char)*b);
+        if (d) return d;
+        a++; b++;
+    }
+    return tolower((unsigned char)*a) - tolower((unsigned char)*b);
+}
 static const char* wm_module_known_wms[] = { "sway", "hyprland", "wayfire", "river", "dwm", "i3", "bspwm", "herbstluftwm", "awesome", "xmonad", "openbox", "fluxbox", "icewm", "jwm", "mutter", "kwin_wayland",  "kwin_x11", "kwin", "muffin", "marco", "metacity", "xfwm4", "compiz",  "enlightenment", "lxqt-session", "plasmashell", NULL };
 static int wm_module_try_proc(char* out, size_t out_size) {
     DIR* dir = opendir("/proc");
@@ -15,15 +23,16 @@ static int wm_module_try_proc(char* out, size_t out_size) {
         fclose(f);
         size_t len = strlen(comm);
         while (len > 0 && (comm[len-1] == '\n' || comm[len-1] == '\r')) comm[--len] = '\0';
-        for (int i = 0; wm_module_known_wms[i]; i++) {
-            if (strcasecmp(comm, wm_module_known_wms[i]) == 0) {
-                if (strcasecmp(comm, "kwin_wayland") == 0 ||
-                    strcasecmp(comm, "kwin_x11")     == 0 ||
-                    strcasecmp(comm, "kwin")          == 0)      { snprintf(out, out_size, "KWin"); }
-                else if (strcasecmp(comm, "mutter")   == 0)      { snprintf(out, out_size, "Mutter"); }
-                else if (strcasecmp(comm, "muffin")   == 0)      { snprintf(out, out_size, "Muffin"); }
-                else if (strcasecmp(comm, "xfwm4")    == 0)      { snprintf(out, out_size, "Xfwm4"); }
-                else if (strcasecmp(comm, "plasmashell") == 0)   { snprintf(out, out_size, "KDE Plasma"); }
+        int i;
+        for (i = 0; wm_module_known_wms[i]; i++) {
+            if (wm_module_strcasecmp(comm, wm_module_known_wms[i]) == 0) {
+                if (wm_module_strcasecmp(comm, "kwin_wayland")  == 0 ||
+                    wm_module_strcasecmp(comm, "kwin_x11")      == 0 ||
+                    wm_module_strcasecmp(comm, "kwin")          == 0)    { snprintf(out, out_size, "KWin"); }
+                else if (wm_module_strcasecmp(comm, "mutter")   == 0)    { snprintf(out, out_size, "Mutter"); }
+                else if (wm_module_strcasecmp(comm, "muffin")   == 0)    { snprintf(out, out_size, "Muffin"); }
+                else if (wm_module_strcasecmp(comm, "xfwm4")    == 0)    { snprintf(out, out_size, "Xfwm4"); }
+                else if (wm_module_strcasecmp(comm, "plasmashell") == 0) { snprintf(out, out_size, "KDE Plasma"); }
                 else                                             { snprintf(out, out_size, "%s", comm); }
                 closedir(dir);
                 return 1;
@@ -35,7 +44,8 @@ static int wm_module_try_proc(char* out, size_t out_size) {
 }
 const char* wm_module_preset(char* result, size_t result_size) {
     const char* env_vars[] = {"XDG_CURRENT_DESKTOP", "XDG_SESSION_DESKTOP", "CURRENT_DESKTOP", "SESSION_DESKTOP", "DESKTOP_SESSION", NULL};
-    for (int i = 0; env_vars[i]; i++) {
+    int i;
+    for (i = 0; env_vars[i]; i++) {
         const char* val = getenv(env_vars[i]);
         if (val && val[0] != '\0') {
             snprintf(result, result_size, "%s", val);
