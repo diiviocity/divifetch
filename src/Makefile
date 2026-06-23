@@ -1,5 +1,5 @@
-CXX      = g++
-CXXFLAGS = -std=c++98
+include ../config.mk
+
 TARGET   = generator
 DESTDIR  = ..
 

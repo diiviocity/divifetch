@@ -216,7 +216,9 @@ void output_makefile(std::ofstream& make_file, std::string& make_config_file_pat
 
     parse_make_templates_config(make_config_file_path, templates);
 
-    make_file << "DESTDIR = /usr/local/bin\n"
+    make_file << "include config.mk\n\n"
+            
+              << "DESTDIR = /usr/local/bin\n"
               << "TARGET  = divifetch\n\n"
 
               << ".PHONY: all header clean install uninstall run\n\n"
@@ -276,13 +278,13 @@ void output_makefile(std::ofstream& make_file, std::string& make_config_file_pat
               << "\t./build/header\n\n"
 
               << "build/header: build/header.c" << lib_deps << "\n"
-              << "\tgcc -O2 -static -s -I. "
+              << "\t$(CC) $(CFLAGS) -I. "
               << "build/header.c -Lbuild"
               << link_objs << all_linker_flags
               << " -o build/header\n\n"
 
               << "$(TARGET): " << out_source_file_path << " " << out_header_file_path << lib_deps << "\n"
-              << "\tgcc -O2 -static -s -I. "
+              << "\t$(CC) $(CFLAGS) -I. "
               << out_source_file_path << " -Lbuild"
               << link_objs << all_linker_flags
               << " -o $(TARGET)\n";
