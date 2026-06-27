@@ -95,7 +95,7 @@ void output_fetch_print(std::ofstream& fetch_file, const ConfigSource& current_c
     }
 
     if (current_config_source.config_default.execute.size()) {
-        fetch_file << "    execl(\"" << current_config_source.config_default.execute << "\", NULL);\n";
+        fetch_file << "    execl(\"" << current_config_source.config_default.execute << "\", " << current_config_source.config_default.execute << "\", NULL);\n";
     }
 }
 
