@@ -44,17 +44,13 @@ vi config.conf
 make
 ```
 
-## >> COMING SOON >>
-
-- more modules
-
-- improved error handling
-
-- build-time executable static modules
-
 ## >> SCREENSHOTS >>
 
 can be found [here](screenshots/README.md)
+
+## >> DOCUMENTATION >>
+
+can be found [here](https://git.divio.city/me/divifetch/wiki)
 
 ## >> MOTIVATION >>
 
