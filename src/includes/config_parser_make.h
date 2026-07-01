@@ -12,6 +12,7 @@ struct MakeTemplate {
     std::string archive;
 };
 
+void make_config_parser_apply_template_field(MakeTemplate &tmpl, const std::string &key, const std::string &val);
 void parse_make_templates_config(const std::string filename, std::map<std::string, MakeTemplate>& templates);
 void parse_make_module_config(const std::string filename, std::map<std::string, MakeTemplate>& templates, MakeTemplate& tmpl);
 
