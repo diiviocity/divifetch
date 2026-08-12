@@ -22,26 +22,28 @@ unlike other fetch scripts that parse configs and fork processes at every run, d
 - multi-config random selection
 - Unicode and ANSI escape code support
 
+## >> PREREQUISITES >>
+
+- [V](https://vlang.io/) compiler
+- C compiler (tested with [GCC](https://gcc.gnu.org/), [TinyCC](https://bellard.org/tcc/))
+- libc headers (usually pre-installed)
+
 ## >> GETTING STARTED >>
 
 ```shell
-# clone the repo:
+# clone the repo
 git clone https://git.divio.city/me/divifetch.git
 cd divifetch
 
-# compile the generator:
-cd src
-make && cd ..
+# compile the generator
+./build.vsh
 
-# generate, copy and edit the example config file:
-./generator config -oc config.conf
+# generate, copy and edit the example config file
+./generator --genconf -oc config.conf
 vi config.conf
 
-# generate the source code and Makefile:
-./generator source make
-
-# build the fetch script:
-make
+# generate the source code, build script and run it
+./generator
 ```
 
 ## >> SCREENSHOTS >>
