@@ -1,0 +1,15 @@
+;; hello_world_d module — a D sample for divifetch-zig.
+;;
+;; :language "d" builds once per fetch: the build script runs dmd -c
+;; -betterC over :source (module.d by default) — nothing links by default,
+;; and the object joins the zig link beside its own sources. the shim
+;; reaches :fn through the module-owned buffer.
+;;
+;; :deps names the libraries the link carries, one -l flag per spelling.
+;; this preset calls C's stdio, so it names :c; a module on the D standard
+;; library spells :deps [:std] instead — full d compilation and the
+;; phobos/druntime link — and :linker-flags still ride the final link.
+(module
+    :language "d"
+    :fn "hello_world_d_module_preset"
+    :deps [:c])

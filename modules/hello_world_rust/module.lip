@@ -1,0 +1,15 @@
+;; hello_world_rust module — a Rust sample for divifetch-zig.
+;;
+;; :language "rust" builds once per fetch: the build script runs rustc
+;; --crate-type=staticlib over :source (module.rs by default), zig links the
+;; object beside its own sources, and the shim reaches :fn through the
+;; module-owned buffer. :command can replace the recipe, :linker-flags ride
+;; the final link.
+;;
+;; :deps names the libraries the link carries — nothing links by default.
+;; a staticlib embeds its own std, but rides libc, so a std crate spells
+;; :deps [:std]; a no_std module drops the dep and links bare.
+(module
+    :language "rust"
+    :fn "hello_world_rust_module_preset"
+    :deps [:std])

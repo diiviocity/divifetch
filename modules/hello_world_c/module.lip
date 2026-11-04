@@ -1,0 +1,13 @@
+;; hello_world_c module — a C sample for divifetch-zig.
+;;
+;; :language "c" makes the build script feed :source (module.c by default)
+;; to zig along with run.zig, and the generated source reaches the preset
+;; through a shim that exports :fn as a C symbol. the buffer is the
+;; config's :buffer-size, the entry defaults to "Hello World C".
+;; :deps names the libraries the link carries — nothing links by default.
+;; this preset calls C's stdio, so it names :std (the language's standard
+;; library: libc); :linker-flags ride the final link.
+(module
+    :language "c"
+    :fn "hello_world_c_module_preset"
+    :deps [:std])

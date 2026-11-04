@@ -1,0 +1,3 @@
+;; user module — $USER, with $LOGNAME fallback.
+(module
+    :fn "preset" :deps [:environ])

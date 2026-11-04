@@ -1,0 +1,3 @@
+;; boot module — UEFI vs BIOS via /sys/firmware/efi/efivars.
+(module
+    :fn "preset")

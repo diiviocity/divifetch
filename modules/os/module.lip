@@ -1,0 +1,8 @@
+;; os module — distribution name from /etc/os-release.
+;;
+;; :fn is the entry the generator calls for a dynamic entry of this
+;; name, :deps is the runtime context it is passed in parameter order
+;; (:io, :environ), :arg names the one string an entry's :args in
+;; config.lip supplies.
+(module
+    :fn "preset")

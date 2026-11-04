@@ -1,0 +1,9 @@
+;; memory module — parses /proc/meminfo, prints used / total (the
+;; BSD targets answer from their kernel's page counters instead).
+;;
+;; :fn is the entry the generator calls for a dynamic entry of this
+;; name, :deps is the runtime context it is passed in parameter order
+;; (:io, :environ), :arg names the one string an entry's :args in
+;; config.lip supplies.
+(module
+    :fn "preset")

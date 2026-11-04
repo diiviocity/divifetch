@@ -1,0 +1,3 @@
+;; hostname module — nodename from uname(2).
+(module
+    :fn "preset")

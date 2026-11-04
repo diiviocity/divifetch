@@ -1,0 +1,3 @@
+;; theme module — GTK theme / icons / font from gtk settings.ini.
+(module
+    :fn "preset" :deps [:environ])

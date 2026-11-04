@@ -1,0 +1,3 @@
+;; locale module — $LC_ALL with $LANG fallback.
+(module
+    :fn "preset" :deps [:environ])

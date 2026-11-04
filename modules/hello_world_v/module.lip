@@ -1,0 +1,10 @@
+;; hello_world_v module — a V sample for divifetch-zig.
+;;
+;; :language "v" modules are build-time: the build script runs :source with
+;; the entry's args and stdout becomes the baked value (v run <file> <args>).
+;; V keeps all runtime state to itself, so V presets print at bake time and
+;; the fetch process never touches them.
+(module
+    :language "v"
+    :source "module.v"
+    :arg :text)

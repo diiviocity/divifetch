@@ -1,0 +1,3 @@
+;; gpu module — GPU(s) via /sys/class/drm, vendor + driver, zero spawn.
+(module
+    :fn "preset" :deps [:io])

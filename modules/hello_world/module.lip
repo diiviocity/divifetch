@@ -1,0 +1,10 @@
+;; hello_world module — generator test stub, standing in for the old
+;; hello_world_c and hello_world_cpp. Compiled and unit-tested but
+;; never called by run.zig's printed output.
+;;
+;; :fn is the entry the generator calls for a dynamic entry of this
+;; name, :deps is the runtime context it is passed in parameter order
+;; (:io, :environ), :arg names the one string an entry's :args in
+;; config.lip supplies.
+(module
+    :fn "preset")

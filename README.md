@@ -8,7 +8,7 @@
 
 divifetch is a build-time fetch script compiler.
 
-it reads a simple config file and generates a C program that renders ASCII art with dynamic content from pluggable modules.
+it reads a simple config file and generates a Zig program that renders ASCII art with dynamic content from pluggable modules.
 
 unlike other fetch scripts that parse configs and fork processes at every run, divifetch moves most of the work to compile time - producing a binary that's faster, smaller, and dependency-freer than any traditional fetch script could be.
 
@@ -18,15 +18,14 @@ unlike other fetch scripts that parse configs and fork processes at every run, d
 - strict no dead code policy
 - runtime dependency-free due to static linking
 - easily extensible module system
-- polyglot module support
+- polyglot module support (C, C++, Rust, D, V)
 - multi-config random selection
 - Unicode and ANSI escape code support
 
 ## >> PREREQUISITES >>
 
-- [V](https://vlang.io/) compiler
-- C compiler (tested with [GCC](https://gcc.gnu.org/), [TinyCC](https://bellard.org/tcc/))
-- libc headers (usually pre-installed)
+- [V](https://vlang.io/) compiler (0.5.2+)
+- [Zig](https://ziglang.org/) compiler (0.17.x)
 
 ## >> GETTING STARTED >>
 
@@ -35,15 +34,14 @@ unlike other fetch scripts that parse configs and fork processes at every run, d
 git clone https://git.divio.city/me/divifetch.git
 cd divifetch
 
-# compile the generator
-./build.vsh
-
-# generate, copy and edit the example config file
-./generator --genconf -oc config.conf
-vi config.conf
+# generate an example config file
+v run generator -C
 
 # generate the source code, build script and run it
-./generator
+v run generator
+
+# run the generated fetch
+./target/divifetch
 ```
 
 ## >> SCREENSHOTS >>
@@ -53,6 +51,8 @@ can be found [here](screenshots/README.md)
 ## >> DOCUMENTATION >>
 
 can be found [here](https://git.divio.city/me/divifetch/wiki)
+
+(outdated as of v4.0)
 
 ## >> MOTIVATION >>
 

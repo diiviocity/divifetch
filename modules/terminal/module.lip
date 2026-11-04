@@ -1,0 +1,10 @@
+;; terminal module — env hints first, then a walk up the process tree
+;; skipping shells, falls back to $TERM, appends a version when found.
+;;
+;; :fn is the entry the generator calls for a dynamic entry of this
+;; name, :deps is the runtime context it is passed in parameter order
+;; (:io, :environ), :arg names the one string an entry's :args in
+;; config.lip supplies.
+(module
+    :fn "preset"
+    :deps [:io :environ])

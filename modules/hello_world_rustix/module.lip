@@ -1,0 +1,21 @@
+;; hello_world_rustix module — the extern-deps rust sample for divifetch-zig.
+;;
+;; :language "rust" with a :deps :ext entry turns the build script over to
+;; cargo: the generator writes the crate manifest right here (the lib is
+;; module.rs, the spellings are the [dependencies], and the release profile
+;; pins panic=abort), the build runs `cargo build --release`, and zig links
+;; the staticlib archive beside its own sources.
+;;
+;; the :ext spellings carry the crate name, its version requirement, the
+;; no-default-features toggle and a features=[...] list with no spaces —
+;; "rustix 1.1.6 features=[system]". features come along exactly as
+;; cargo would read them; a no_std crate adds no-default-features and
+;; keeps the std spelling off its :deps.
+;;
+;; the archive embeds std and every crate it rolls up, so the link needs
+;; libc (:std) and libunwind (the generator adds it for :ext modules);
+;; :linker-flags still ride the final link.
+(module
+    :language "rust"
+    :fn "hello_world_rustix_module_preset"
+    :deps [:std :ext ["rustix 1.1.* features=[system]"]])

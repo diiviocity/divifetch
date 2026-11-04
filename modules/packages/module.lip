@@ -1,0 +1,19 @@
+;; packages module — the merged package-system counter.
+;;
+;; the merged one keeps what the former packages_* modules each
+;; hardcoded: the entry's :args lists candidate backends, tried in
+;; order — (packages :args ["pacman"]) — and the first hit wins as
+;; "N (backend)"; no :args means the full list in the same order, so a
+;; bare (packages) entry reads the machine it runs on. the list is
+;; per-target: the linux backends (apk, dpkg, emerge, eopkg, pacman,
+;; pkgtool, xbps) hold only on the linux build, and the BSD targets
+;; carry their own one-level /var/db/pkg counter — so a foreign
+;; directory never masquerades as another package system's database.
+;;
+;; the preset takes the list as one named argument, so the lip declares
+;; :arg :args — the cross-check keeps the param named in module.zig
+;; and the entry's list spelling in config.lip.
+(module
+    :fn "preset"
+    :deps [:io]
+    :arg :args)

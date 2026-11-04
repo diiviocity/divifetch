@@ -1,0 +1,4 @@
+;; temp module — first hwmon thermal sensor (freebsd answers the
+;; first core's dev.cpu.0.temperature instead).
+(module
+    :fn "preset" :deps [:io])

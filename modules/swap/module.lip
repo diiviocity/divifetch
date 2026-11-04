@@ -1,0 +1,4 @@
+;; swap module — SwapTotal/SwapFree from /proc/meminfo (the BSD
+;; targets read their kernel's swap counters; no swap stays "?").
+(module
+    :fn "preset")

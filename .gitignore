@@ -1,0 +1,32 @@
+# what the generator and the build script manufacture:
+# the generated sources and their bake file, and imp's own stamp state.
+.tmp/
+examples/**/.tmp
+modules/**/.tmp
+
+# the build directory (binaries headgen + the fetch, artifacts) and imp's
+# stamps; the name follows the build :build-dir field.
+configs/
+target/
+.imp/
+
+# compiled module objects the build leaves beside their sources: the rust
+# staticlibs and the template-built ones, whatever their extension carries.
+modules/**/target/
+modules/**/Cargo.lock
+modules/**/*.o
+modules/**/*.a
+
+# a run of the fetch itself, for the common target name.
+divifetch
+
+# sources the generator writes when a config overrides the out paths to the
+# repo root (the scripts that do not sit in .tmp/).
+/run.zig
+/headgen.zig
+/bake.zig
+/.tmp-modules
+
+# the generated build script — generated, but some keep it committed;
+# uncomment to ignore the -ob default.
+# /build.vsh

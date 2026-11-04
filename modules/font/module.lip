@@ -1,0 +1,4 @@
+;; font module — the running terminal's configured font, from its
+;; config file. Zero spawn; unsupported terminals answer "?".
+(module
+    :fn "preset" :deps [:io :environ])

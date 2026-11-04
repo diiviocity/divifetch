@@ -1,0 +1,4 @@
+;; init module — pid 1's comm (the BSD targets read it out of kern
+;; .proc's kinfo record instead of /proc/1/comm).
+(module
+    :fn "preset")

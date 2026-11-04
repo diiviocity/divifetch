@@ -1,0 +1,8 @@
+include_dir=/home/diviocity/openbsd-sysroot/usr/include
+sys_include_dir=/home/diviocity/openbsd-sysroot/usr/include
+cc_dir=
+crt_dir=/home/diviocity/openbsd-sysroot/usr/lib
+lib_dir=/home/diviocity/openbsd-sysroot/usr/lib
+msvc_lib_dir=
+kernel32_lib_dir=
+darwin_sdk_dir=

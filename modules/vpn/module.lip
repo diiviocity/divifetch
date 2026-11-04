@@ -1,0 +1,4 @@
+;; vpn module — tunnel interface presence (the BSD targets read
+;; libc's getifaddrs instead of /sys/class/net).
+(module
+    :fn "preset" :deps [:io])

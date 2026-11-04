@@ -1,0 +1,9 @@
+;; mount module — statfs(2) on a path, prints used / total sizes.
+;;
+;; :fn is the entry the generator calls for a dynamic entry of this
+;; name, :deps is the runtime context it is passed in parameter order
+;; (:io, :environ), :arg names the one string an entry's :args in
+;; config.lip supplies.
+(module
+    :fn "preset"
+    :arg :path)

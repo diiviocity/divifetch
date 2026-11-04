@@ -1,0 +1,3 @@
+;; displays module — connected DRM outputs and preferred modes.
+(module
+    :fn "preset" :deps [:io])

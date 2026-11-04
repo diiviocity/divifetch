@@ -1,0 +1,14 @@
+;; hello_world_cpp module — a C++ sample for divifetch-zig.
+;;
+;; :language "cpp" feeds :source (module.cpp by default) to zig along with
+;; the fetch, and the shim names the exported :fn. A C++ preset must wrap
+;; its symbol in extern "C" — see module.cpp. :command can replace the
+;; compile with a template (${cc}, ${source_file}, ${output_file}), and
+;; :linker-flags ride the final link.
+;; :deps names the libraries the link carries — nothing links by default.
+;; cstdlib rides libc, so the preset names :std; :linker-flags ride the
+;; final link, and zig chains libc++ for the c++ sources on its own.
+(module
+    :language "cpp"
+    :fn "hello_world_cpp_module_preset"
+    :deps [:std])

@@ -1,0 +1,21 @@
+;; hello_world_rustix_nostd module — the no-libc rust sample for divifetch-zig.
+;;
+;; :language "rust" turns the build over to cargo like every ext-dep
+;; module: the manifest lands here (lib = module.rs, crate-type
+;; staticlib, release profile panic="abort"), the build runs
+;; `cargo build --release`, and the archive joins the zig link.
+;;
+;; the :ext spelling carries no-default-features — rustix drops its std
+;; ride and builds bare, so the crate compiles no_std given the module
+;; carries its own panic handler (module.rs shows the two marks a
+;; no_std crate needs: #[panic_handler] and the rust_eh_personality
+;; stub the prebuilt builtins keep a data pointer to).
+;;
+;; no :std — the link takes no libc. pair the module with a config under
+;; (build :flags ... "-Dtarget=x86_64-linux-none") and the whole fetch
+;; compiles static: ldd answers not a dynamic executable (the
+;; examples/nolibc one shows the full picture).
+(module
+    :language "rust"
+    :fn "hello_world_rustix_nostd_module_preset"
+    :deps [:ext ["rustix 1.1.* no-default-features features=[system]"]])

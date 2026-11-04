@@ -1,0 +1,4 @@
+;; loadavg module — 1/5/15-minute load averages (the BSD targets
+;; answer through getloadavg(3)).
+(module
+    :fn "preset")

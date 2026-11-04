@@ -1,8 +1,34 @@
+# the languages divifetch-zig is made of: zig sources, blip lips, V tools,
+# and the c / c++ / rust module sources that ride the zig build.
 * text=auto eol=lf
 *.bat eol=crlf
 
+# zig: the modules and their tests
+*.zig linguist-language=Zig
+
+# blip: the config and the module lips, plus the example one the --genconf writes
+*.lip linguist-language=blip
+
+# V: the generator and the build script it writes
 *.v linguist-language=V
 *.vv linguist-language=V
 *.vsh linguist-language=V
 v.mod linguist-language=V
-.vdocignore linguist-language=ignore
+
+# compiled-language module sources
+*.c linguist-language=C
+*.h linguist-language=C
+*.cpp linguist-language=C++
+*.cc linguist-language=C++
+*.rs linguist-language=Rust
+
+# the art files: text, but not language
+ascii/** linguist-generated=true linguist-detectable=false
+
+# what the build manufactures beside the sources: rust staticlibs and
+# template-built objects never diff well
+*.o binary
+*.a binary
+
+# the generated sources of .tmp/ are outputs, not code for the stats
+.tmp/** linguist-generated=true linguist-vendored=true
