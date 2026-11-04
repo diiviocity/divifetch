@@ -24,14 +24,15 @@ unlike other fetch scripts that parse configs and fork processes at every run, d
 
 ## >> PREREQUISITES >>
 
-- [V](https://vlang.io/) compiler (0.5.2+)
+- [V](https://vlang.io/) compiler (0.5.2)
 - [Zig](https://ziglang.org/) compiler (0.17.x)
+- [blip](https://git.vorelabs.dev/vorelabs/blip) machine
 
 ## >> GETTING STARTED >>
 
 ```shell
 # clone the repo
-git clone https://git.divio.city/me/divifetch.git
+git clone https://git.vorelabs.dev/vorelabs/divifetch.git
 cd divifetch
 
 # generate an example config file
@@ -50,7 +51,7 @@ can be found [here](screenshots/README.md)
 
 ## >> DOCUMENTATION >>
 
-can be found [here](https://git.divio.city/me/divifetch/wiki)
+can be found [here](https://git.vorelabs.dev/vorelabs/divifetch/wiki)
 
 (outdated as of v4.0)
 
@@ -68,7 +69,7 @@ one might try to circumvent this by hard-coding values into the config file, but
 unfortunately for me, i do enjoy the aesthetic value that having something (including a fetch script) on shell startup brings. that led to me creating divifetch.
 
 Mirrors:
-[diviocity](https://git.divio.city/me/divifetch)
+[diviocity](https://git.vorelabs.dev/vorelabs/divifetch)
 [disroot](https://git.disroot.org/diviocity/divifetch)
 [codeberg](https://codeberg.org/diviocity/divifetch)
 [git.gay](https://git.gay/diviocity/divifetch)
