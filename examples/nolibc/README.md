@@ -14,7 +14,7 @@ v run build.vsh build
 ldd target/divifetch
 ```
 
-the fuzzy bits sit in the samples: modules/hello_world_rustix_nostd (the :ext
+the fuzzy bits sit in the samples: modules/rust/hello_world_rustix_nostd (the :ext
 rustix spelling with no-default-features and the two no_std marks
 module.rs carries) and build.conf beside this file (the none target
 spelling in :flags).

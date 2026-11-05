@@ -14,10 +14,10 @@ const headgen_exe = os.join_path_single(build_dir, 'headgen')
 const dest_dir = '/usr/local/bin'
 const install_path = '/usr/local/bin/divifetch'
 const c_sources = []string{}
-const objects = ['modules/hello_world_rustix_nostd/module.a']
+const objects = ['modules/rust/hello_world_rustix_nostd/module.a']
 const compile_steps = [][]string{}
 const compile_shells = []string{}
-const rust_ext = [['hello_world_rustix_nostd', 'module.rs', 'rustix 1.1.* no-default-features features=[system]']]
+const rust_ext = [['hello_world_rustix_nostd', 'modules/rust/hello_world_rustix_nostd', 'module.rs', 'rustix 1.1.* no-default-features features=[system]']]
 const extra_link = []string{}
 const v_bakes = [][]string{}
 
@@ -27,7 +27,7 @@ ctx.default(['build'])
 
 ctx.add_target(target_exe)
 
-mut regen_args := ['v', 'run', 'generator', '-S', '-os', '.tmp/run.zig', '-ohg', '.tmp/headgen.zig', '-oh', '.tmp/bake.zig', '-s', 'config.lip']
+mut regen_args := ['v', 'run', 'generator', '-S', '-os', '.tmp/run.zig', '-ohg', '.tmp/headgen.zig', '-oh', '.tmp/bake.zig', '-orun', '.tmp/run-run.zig', '-s', 'config.lip']
 
 ctx.add_flow(
 	id: 'regen'
@@ -35,6 +35,12 @@ ctx.add_flow(
 	takes: ['config.lip', 'modules']
 	gives: ['.tmp/run.zig']
 	flow: fn [regen_args] (self imp.Flow) ! {
+		imp.system_args(regen_args)!
+		if os.exists('.tmp/run-run.zig') {
+			os.rm('.tmp/run-run.zig')!
+		}
+		mut stale := os.join_path_single('target', 'divifetch-run')
+		if os.exists(stale) { os.rm(stale)! }
 		imp.system_args(regen_args)!
 	}
 )
@@ -52,7 +58,12 @@ ctx.add_flow(
 		if os.is_dir(mod_alias) && !os.is_link(mod_alias) {
 			return error('the modules ' + mod_alias + ' is a real directory; the fetch needs it as a symlink into the repo tree')
 		}
-		if !os.is_link(mod_alias) {
+		// a symlink of another age — the workspace having moved — re-points
+		// fresh: the alias rides an absolute path.
+		if os.is_link(mod_alias) {
+			os.rm(mod_alias)!
+		}
+		if !os.exists(mod_alias) {
 			os.symlink(os.abs_path('modules'), mod_alias)!
 		}
 		// the compiled-language modules build their objects first: the
@@ -67,24 +78,21 @@ ctx.add_flow(
 		// the objects const.
 		for pair in rust_ext {
 			name := pair[0]
-			base_file := pair[1].all_before_last('.')
-			mut manifest := 'modules/'
-			manifest += pair[0]
+			base_file := pair[2].all_before_last('.')
+			mut manifest := pair[1]
 			manifest += '/Cargo.toml'
 			imp.system_args(['cargo', 'build', '--release', '--manifest-path', manifest])!
-			mut out_a := 'modules/'
-			out_a += pair[0]
+			mut out_a := pair[1]
 			out_a += '/target/release/lib'
 			out_a += name
 			out_a += '.a'
-			mut target_a := 'modules/'
-			target_a += pair[0]
+			mut target_a := pair[1]
 			target_a += '/'
 			target_a += base_file + '.a'
 			os.cp(out_a, target_a)!
 		}
 		for cmd in compile_shells {
-			code := os.system(cmd)
+			code := os.system_args(['/bin/sh', '-c', cmd])
 			if code != 0 {
 				return error('a compile step failed: ' + cmd + ' (code ' + code.str() + ')')
 			}

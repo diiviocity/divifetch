@@ -99,9 +99,51 @@ fn test_config_art_width_warns_but_accepts() {
 	assert cfg.sources[0].entries[0].line > 0
 }
 
+fn test_config_languages_select_the_search() {
+	os.chdir(fixture_dir)!
+	// the spellings normalize (c++ → cpp) and merge into the registry's
+	// list, exactly in the order the config spells them.
+	mut cfg := collected_from_propform('(config :languages [:zig :d :cpp])', '(kernel)')!
+	assert cfg.languages == ['zig', 'd', 'cpp']
+	assert cfg.sources[0].props.languages == ['zig', 'd', 'cpp']
+	// a quoted string spelling rides too: "c++" and :cpp meet in cpp,
+	// and the entry behind it loads.
+	cfg = collected_from_propform('(config :languages ["c++"])', '(hello_world_cpp)')!
+	assert cfg.languages == ['cpp']
+	assert cfg.sources[0].entries[0].kind == 'hello_world_cpp'
+}
+
+fn test_config_languages_must_be_a_known_spelling() {
+	os.chdir(fixture_dir)!
+	collected_from_propform('(config :languages [:zig :ruby])', '(kernel)') or {
+		assert err.msg().contains("config :languages holds 'ruby'")
+		return
+	}
+	panic('an unknown :languages spelling should have stopped')
+}
+
+fn test_config_languages_keep_the_other_dirs_out() {
+	os.chdir(fixture_dir)!
+	// a zig-only fetch never reaches modules/rust/: the module stops under
+	// the named error instead of loading past the selection.
+	collected_from_propform('(config :languages [:zig])', '(hello_world_rustix)') or {
+		assert err.msg().contains("no module called 'hello_world_rustix'")
+		return
+	}
+	panic('a module outside :languages should have stopped')
+}
+
+fn test_language_dirs_default_to_the_whole_tree() {
+	// no (config :languages) spelled: every shipped language subdir walks,
+	// in the canonical order the kinds bind in.
+	cfg := collected_from_propform('', '(kernel)')!
+	assert cfg.languages.len == 0
+	assert cfg.language_dirs() == accepted_languages
+}
+
 fn test_battery_entry_parses_without_a_key() {
-	// load_module reads modules/battery/module.lip from the cwd, and the
-	// zig preset inside it is what :deps was checked against.
+	// load_module reads modules/zig/battery/module.lip from the cwd, and
+	// the zig preset inside it is what :deps was checked against.
 	os.chdir(fixture_dir)!
 	cfg := collected_from_propform('', '(battery)')!
 	e := cfg.sources[0].entries[0]
@@ -291,9 +333,9 @@ fn test_load_caches_the_module() {
 fn test_missing_module_stops_named() {
 	os.chdir(fixture_dir)!
 	// the dir exists but the lip is absent: the named shape is the error.
-	os.mkdir_all('modules/no_such_module')!
+	os.mkdir_all('modules/zig/no_such_module')!
 	defer {
-		os.rmdir('modules/no_such_module') or {}
+		os.rmdir('modules/zig/no_such_module') or {}
 	}
 	mut cfg := Config{
 		warned: map[string]bool{}
@@ -321,10 +363,10 @@ fn test_no_module_dir_stops_named() {
 
 fn test_lip_rejects_unknown_keys() {
 	os.chdir(fixture_dir)!
-	mkdir_one('modules/bad_kind', 'module.lip', '(module :what "x")')
+	mkdir_one('modules/zig/bad_kind', 'module.lip', '(module :what "x")')
 	defer {
-		os.rm('modules/bad_kind/module.lip') or {}
-		os.rmdir('modules/bad_kind') or {}
+		os.rm('modules/zig/bad_kind/module.lip') or {}
+		os.rmdir('modules/zig/bad_kind') or {}
 	}
 	mut cfg := Config{
 		warned: map[string]bool{}
@@ -338,10 +380,10 @@ fn test_lip_rejects_unknown_keys() {
 
 fn test_language_must_be_a_known_spelling() {
 	os.chdir(fixture_dir)!
-	mkdir_one('modules/bad_lang', 'module.lip', '(module :language "ruby")')
+	mkdir_one('modules/zig/bad_lang', 'module.lip', '(module :language "ruby")')
 	defer {
-		os.rm('modules/bad_lang/module.lip') or {}
-		os.rmdir('modules/bad_lang') or {}
+		os.rm('modules/zig/bad_lang/module.lip') or {}
+		os.rmdir('modules/zig/bad_lang') or {}
 	}
 	mut cfg := Config{
 		warned: map[string]bool{}
@@ -353,12 +395,29 @@ fn test_language_must_be_a_known_spelling() {
 	panic('unknown language should have stopped')
 }
 
+fn test_the_dir_language_and_the_lip_agree() {
+	os.chdir(fixture_dir)!
+	mkdir_one('modules/zig/misdir', 'module.lip', '(module :language "d" :fn "x")')
+	defer {
+		os.rm('modules/zig/misdir/module.lip') or {}
+		os.rmdir('modules/zig/misdir') or {}
+	}
+	mut cfg := Config{
+		warned: map[string]bool{}
+	}
+	cfg.load_module('misdir') or {
+		assert err.msg().contains('modules/zig/ takes the zig modules, but the lip says :language')
+		return
+	}
+	panic('a lip in the wrong language subdir should have stopped')
+}
+
 fn test_c_module_rejects_context_deps() {
 	os.chdir(fixture_dir)!
-	mkdir_one('modules/bad_lang_c', 'module.lip', '(module :language "c" :fn "x" :deps [:io])')
+	mkdir_one('modules/c/bad_lang_c', 'module.lip', '(module :language "c" :fn "x" :deps [:io])')
 	defer {
-		os.rm('modules/bad_lang_c/module.lip') or {}
-		os.rmdir('modules/bad_lang_c') or {}
+		os.rm('modules/c/bad_lang_c/module.lip') or {}
+		os.rmdir('modules/c/bad_lang_c') or {}
 	}
 	mut cfg := Config{
 		warned: map[string]bool{}
@@ -380,10 +439,10 @@ fn test_rust_module_carries_the_std_dep() {
 	assert lip.language == 'rust'
 	assert lip.deps_std
 	// without the spelling the crate links bare (no_std style).
-	mkdir_one('modules/bare_rust', 'module.lip', '(module :language "rust" :fn "x")')
+	mkdir_one('modules/rust/bare_rust', 'module.lip', '(module :language "rust" :fn "x")')
 	defer {
-		os.rm('modules/bare_rust/module.lip') or {}
-		os.rmdir('modules/bare_rust') or {}
+		os.rm('modules/rust/bare_rust/module.lip') or {}
+		os.rmdir('modules/rust/bare_rust') or {}
 	}
 	mut bare := Config{
 		warned: map[string]bool{}
@@ -395,10 +454,10 @@ fn test_c_module_spells_the_std_dep_too() {
 	// c and cpp accept the same spelling for uniformity, though their libc
 	// rides the link regardless.
 	os.chdir(fixture_dir)!
-	mkdir_one('modules/std_c', 'module.lip', '(module :language "c" :fn "x" :deps [:std])')
+	mkdir_one('modules/c/std_c', 'module.lip', '(module :language "c" :fn "x" :deps [:std])')
 	defer {
-		os.rm('modules/std_c/module.lip') or {}
-		os.rmdir('modules/std_c') or {}
+		os.rm('modules/c/std_c/module.lip') or {}
+		os.rmdir('modules/c/std_c') or {}
 	}
 	mut cfg := Config{
 		warned: map[string]bool{}
@@ -408,10 +467,10 @@ fn test_c_module_spells_the_std_dep_too() {
 
 fn test_rust_module_rejects_context_deps() {
 	os.chdir(fixture_dir)!
-	mkdir_one('modules/bad_rust', 'module.lip', '(module :language "rust" :fn "x" :deps [:io])')
+	mkdir_one('modules/rust/bad_rust', 'module.lip', '(module :language "rust" :fn "x" :deps [:io])')
 	defer {
-		os.rm('modules/bad_rust/module.lip') or {}
-		os.rmdir('modules/bad_rust') or {}
+		os.rm('modules/rust/bad_rust/module.lip') or {}
+		os.rmdir('modules/rust/bad_rust') or {}
 	}
 	mut cfg := Config{
 		warned: map[string]bool{}
@@ -425,10 +484,10 @@ fn test_rust_module_rejects_context_deps() {
 
 fn test_compiled_module_rejects_non_library_deps() {
 	os.chdir(fixture_dir)!
-	mkdir_one('modules/bad_deps', 'module.lip', '(module :language "rust" :fn "x" :deps ["so/no"])')
+	mkdir_one('modules/rust/bad_deps', 'module.lip', '(module :language "rust" :fn "x" :deps ["so/no"])')
 	defer {
-		os.rm('modules/bad_deps/module.lip') or {}
-		os.rmdir('modules/bad_deps') or {}
+		os.rm('modules/rust/bad_deps/module.lip') or {}
+		os.rmdir('modules/rust/bad_deps') or {}
 	}
 	mut cfg := Config{
 		warned: map[string]bool{}
@@ -444,10 +503,10 @@ fn test_compiled_module_rejects_non_library_deps() {
 fn test_v_module_rejects_the_std_dep() {
 	// v has no link stage, so even :std is meaningless there.
 	os.chdir(fixture_dir)!
-	mkdir_one('modules/std_v', 'module.lip', '(module :language "v" :deps [:std])')
+	mkdir_one('modules/v/std_v', 'module.lip', '(module :language "v" :deps [:std])')
 	defer {
-		os.rm('modules/std_v/module.lip') or {}
-		os.rmdir('modules/std_v') or {}
+		os.rm('modules/v/std_v/module.lip') or {}
+		os.rmdir('modules/v/std_v') or {}
 	}
 	mut cfg := Config{
 		warned: map[string]bool{}
@@ -461,10 +520,10 @@ fn test_v_module_rejects_the_std_dep() {
 
 fn test_d_module_names_the_libraries_it_links() {
 	os.chdir(fixture_dir)!
-	mkdir_one('modules/lib_d', 'module.lip', '(module :language "d" :fn "x" :deps [:c :m])')
+	mkdir_one('modules/d/lib_d', 'module.lip', '(module :language "d" :fn "x" :deps [:c :m])')
 	defer {
-		os.rm('modules/lib_d/module.lip') or {}
-		os.rmdir('modules/lib_d') or {}
+		os.rm('modules/d/lib_d/module.lip') or {}
+		os.rmdir('modules/d/lib_d') or {}
 	}
 	mut cfg := Config{
 		warned: map[string]bool{}
@@ -478,10 +537,10 @@ fn test_d_module_names_the_libraries_it_links() {
 
 fn test_d_module_carries_the_std_dep() {
 	os.chdir(fixture_dir)!
-	mkdir_one('modules/std_d', 'module.lip', '(module :language "d" :fn "x" :deps [:std])')
+	mkdir_one('modules/d/std_d', 'module.lip', '(module :language "d" :fn "x" :deps [:std])')
 	defer {
-		os.rm('modules/std_d/module.lip') or {}
-		os.rmdir('modules/std_d') or {}
+		os.rm('modules/d/std_d/module.lip') or {}
+		os.rmdir('modules/d/std_d') or {}
 	}
 	mut cfg := Config{
 		warned: map[string]bool{}
@@ -493,10 +552,10 @@ fn test_d_module_carries_the_std_dep() {
 
 fn test_d_module_rejects_context_deps() {
 	os.chdir(fixture_dir)!
-	mkdir_one('modules/bad_d', 'module.lip', '(module :language "d" :fn "x" :deps [:io])')
+	mkdir_one('modules/d/bad_d', 'module.lip', '(module :language "d" :fn "x" :deps [:io])')
 	defer {
-		os.rm('modules/bad_d/module.lip') or {}
-		os.rmdir('modules/bad_d') or {}
+		os.rm('modules/d/bad_d/module.lip') or {}
+		os.rmdir('modules/d/bad_d') or {}
 	}
 	mut cfg := Config{
 		warned: map[string]bool{}
@@ -510,10 +569,10 @@ fn test_d_module_rejects_context_deps() {
 
 fn test_d_module_rejects_non_library_deps() {
 	os.chdir(fixture_dir)!
-	mkdir_one('modules/junk_d', 'module.lip', '(module :language "d" :fn "x" :deps ["c m"])')
+	mkdir_one('modules/d/junk_d', 'module.lip', '(module :language "d" :fn "x" :deps ["c m"])')
 	defer {
-		os.rm('modules/junk_d/module.lip') or {}
-		os.rmdir('modules/junk_d') or {}
+		os.rm('modules/d/junk_d/module.lip') or {}
+		os.rmdir('modules/d/junk_d') or {}
 	}
 	mut cfg := Config{
 		warned: map[string]bool{}
@@ -527,11 +586,11 @@ fn test_d_module_rejects_non_library_deps() {
 
 fn test_rust_ext_spells_the_crates() {
 	os.chdir(fixture_dir)!
-	mkdir_one('modules/extspec', 'module.lip',
+	mkdir_one('modules/rust/extspec', 'module.lip',
 		'(module :language "rust" :fn "x" :deps [:ext ["rustix" "rustix 1.1.* features=[system]" "libc 0.2 no-default-features"]])')
 	defer {
-		os.rm('modules/extspec/module.lip') or {}
-		os.rmdir('modules/extspec') or {}
+		os.rm('modules/rust/extspec/module.lip') or {}
+		os.rmdir('modules/rust/extspec') or {}
 	}
 	mut cfg := Config{
 		warned: map[string]bool{}
@@ -549,10 +608,10 @@ fn test_rust_ext_spells_the_crates() {
 
 fn test_rust_ext_without_the_crate_list_stops() {
 	os.chdir(fixture_dir)!
-	mkdir_one('modules/extbare', 'module.lip', '(module :language "rust" :fn "x" :deps [:ext])')
+	mkdir_one('modules/rust/extbare', 'module.lip', '(module :language "rust" :fn "x" :deps [:ext])')
 	defer {
-		os.rm('modules/extbare/module.lip') or {}
-		os.rmdir('modules/extbare') or {}
+		os.rm('modules/rust/extbare/module.lip') or {}
+		os.rmdir('modules/rust/extbare') or {}
 	}
 	mut cfg := Config{
 		warned: map[string]bool{}
@@ -566,10 +625,10 @@ fn test_rust_ext_without_the_crate_list_stops() {
 
 fn test_rust_ext_rejects_a_tangled_token() {
 	os.chdir(fixture_dir)!
-	mkdir_one('modules/extjunk', 'module.lip', '(module :language "rust" :fn "x" :deps [:ext ["rustix security=middle"]])')
+	mkdir_one('modules/rust/extjunk', 'module.lip', '(module :language "rust" :fn "x" :deps [:ext ["rustix security=middle"]])')
 	defer {
-		os.rm('modules/extjunk/module.lip') or {}
-		os.rmdir('modules/extjunk') or {}
+		os.rm('modules/rust/extjunk/module.lip') or {}
+		os.rmdir('modules/rust/extjunk') or {}
 	}
 	mut cfg := Config{
 		warned: map[string]bool{}
@@ -584,10 +643,10 @@ fn test_rust_ext_rejects_a_tangled_token() {
 fn test_compiled_module_rejects_the_ext_dep() {
 	// extern crates ride cargo, and cargo is a rust story.
 	os.chdir(fixture_dir)!
-	mkdir_one('modules/badext', 'module.lip', '(module :language "c" :fn "x" :deps [:ext ["libc"]])')
+	mkdir_one('modules/c/badext', 'module.lip', '(module :language "c" :fn "x" :deps [:ext ["libc"]])')
 	defer {
-		os.rm('modules/badext/module.lip') or {}
-		os.rmdir('modules/badext') or {}
+		os.rm('modules/c/badext/module.lip') or {}
+		os.rmdir('modules/c/badext') or {}
 	}
 	mut cfg := Config{
 		warned: map[string]bool{}
@@ -625,10 +684,10 @@ fn test_single_arg_module_rejects_the_list() {
 
 fn test_v_module_lives_without_a_fn() {
 	os.chdir(fixture_dir)!
-	mkdir_one('modules/bare_v', 'module.lip', '(module :language "v")')
+	mkdir_one('modules/v/bare_v', 'module.lip', '(module :language "v")')
 	defer {
-		os.rm('modules/bare_v/module.lip') or {}
-		os.rmdir('modules/bare_v') or {}
+		os.rm('modules/v/bare_v/module.lip') or {}
+		os.rmdir('modules/v/bare_v') or {}
 	}
 	mut cfg := Config{
 		warned: map[string]bool{}
@@ -640,10 +699,10 @@ fn test_v_module_lives_without_a_fn() {
 
 fn test_v_module_requires_the_build_time() {
 	os.chdir(fixture_dir)!
-	mkdir_one('modules/bare_v', 'module.lip', '(module :language "v")')
+	mkdir_one('modules/v/bare_v', 'module.lip', '(module :language "v")')
 	defer {
-		os.rm('modules/bare_v/module.lip') or {}
-		os.rmdir('modules/bare_v') or {}
+		os.rm('modules/v/bare_v/module.lip') or {}
+		os.rmdir('modules/v/bare_v') or {}
 	}
 	collected_from_propform('', '(bare_v)') or {
 		assert err.msg().contains(':language v entries run at build time')
@@ -654,14 +713,14 @@ fn test_v_module_requires_the_build_time() {
 
 fn test_cross_check_catches_a_dep_mismatch() {
 	os.chdir(fixture_dir)!
-	mkdir_one('modules/mis_lip', 'module.lip', '(module :fn "preset")')
+	mkdir_one('modules/zig/mis_lip', 'module.lip', '(module :fn "preset")')
 	defer {
-		os.rm('modules/mis_lip/module.lip') or {}
-		os.rm('modules/mis_lip/module.zig') or {}
-		os.rmdir('modules/mis_lip') or {}
+		os.rm('modules/zig/mis_lip/module.lip') or {}
+		os.rm('modules/zig/mis_lip/module.zig') or {}
+		os.rmdir('modules/zig/mis_lip') or {}
 	}
 	// the zig source reads io while the lip claims none.
-	os.write_file('modules/mis_lip/module.zig', 'pub fn preset(io: std.Io) []const u8 {')!
+	os.write_file('modules/zig/mis_lip/module.zig', 'pub fn preset(io: std.Io) []const u8 {')!
 	mut cfg := Config{
 		warned: map[string]bool{}
 	}
@@ -675,14 +734,14 @@ fn test_cross_check_catches_a_dep_mismatch() {
 
 fn test_cross_check_catches_an_arg_mismatch() {
 	os.chdir(fixture_dir)!
-	mkdir_one('modules/mis_arg', 'module.lip', '(module :fn "preset" :arg :mountpoint)')
+	mkdir_one('modules/zig/mis_arg', 'module.lip', '(module :fn "preset" :arg :mountpoint)')
 	defer {
-		os.rm('modules/mis_arg/module.lip') or {}
-		os.rm('modules/mis_arg/module.zig') or {}
-		os.rmdir('modules/mis_arg') or {}
+		os.rm('modules/zig/mis_arg/module.lip') or {}
+		os.rm('modules/zig/mis_arg/module.zig') or {}
+		os.rmdir('modules/zig/mis_arg') or {}
 	}
 	// the zig names it path, the lip says mountpoint.
-	os.write_file('modules/mis_arg/module.zig', 'pub fn preset(path: []const u8) []const u8 {')!
+	os.write_file('modules/zig/mis_arg/module.zig', 'pub fn preset(path: []const u8) []const u8 {')!
 	mut cfg := Config{
 		warned: map[string]bool{}
 	}
@@ -695,16 +754,16 @@ fn test_cross_check_catches_an_arg_mismatch() {
 
 fn test_read_zig_signature_pulls_the_shape() {
 	os.chdir(fixture_dir)!
-	sig := read_zig_signature('shell', 'preset')!
+	sig := read_zig_signature('modules/zig/shell', 'preset')!
 	assert sig.io
 	assert sig.env
 	assert sig.args.len == 0
-	pkg := read_zig_signature('packages', 'preset')!
+	pkg := read_zig_signature('modules/zig/packages', 'preset')!
 	assert pkg.io
 	assert !pkg.env
 	assert pkg.args.len == 1
 	assert pkg.args[0] == 'args'
-	command_sig := read_zig_signature('command', 'preset')!
+	command_sig := read_zig_signature('modules/zig/command', 'preset')!
 	assert command_sig.io
 	assert command_sig.env == false
 	assert command_sig.args.len == 1

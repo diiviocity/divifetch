@@ -7,7 +7,7 @@ freebsd answers without config changes — each module branches comptime
 on the target OS the way upstream V's `$if freebsd` did, one binary per
 OS target from one module tree.
 
-what answers what on freebsd (modules/freebsd.zig carries the ABI
+what answers what on freebsd (modules/zig/freebsd.zig carries the ABI
 transcribed from the sysroot's headers):
 
 memory: hw.physmem + vm.stats.vm.v_free_count/v_inactive_count

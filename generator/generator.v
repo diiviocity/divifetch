@@ -58,21 +58,20 @@ fn compile_steps(cfg &Config, default_cc string) []CompileStep {
 			if lip.language == 'rust' && lip.deps_ext.len > 0 { continue }
 			if lip.language !in ['c', 'cpp', 'rust', 'd'] { continue }
 			seen[kind] = true
-			object_file := 'modules/${kind}/${lip.source.all_before_last('.')}${lip.object_extension}'
+			object_file := '${lip.dir}/${lip.source.all_before_last('.')}${lip.object_extension}'
 			if lip.command != '' {
-				steps << CompileStep{ shell: template_expand(lip.command, cc_for(lip.language, default_cc), 'modules/${kind}/${lip.source}', object_file) }
+				steps << CompileStep{ shell: template_expand(lip.command, cc_for(lip.language, default_cc), '${lip.dir}/${lip.source}', object_file) }
 			} else if lip.language == 'rust' {
 				steps << CompileStep{
 					argv: ['rustc', '--crate-type', 'staticlib', '-C', 'opt-level=2', '-o',
-						object_file, 'modules/${kind}/${lip.source}']
+						object_file, '${lip.dir}/${lip.source}']
 				}
 			} else if lip.language == 'd' {
 				steps << CompileStep{
 					argv: if lip.deps_std {
-						['dmd', '-c', '-of=${object_file}', 'modules/${kind}/${lip.source}']
+						['dmd', '-c', '-of=${object_file}', '${lip.dir}/${lip.source}']
 					} else {
-						['dmd', '-c', '-betterC', '-of=${object_file}',
-							'modules/${kind}/${lip.source}']
+						['dmd', '-c', '-betterC', '-of=${object_file}', '${lip.dir}/${lip.source}']
 					}
 				}
 			}
@@ -162,7 +161,7 @@ fn object_outputs(cfg &Config) []string {
 			// ext-dep rust module collects cargo's staticlib archive instead.
 			if lip.language in ['rust', 'd'] || lip.command != '' {
 				ext_a := lip.language == 'rust' && lip.deps_ext.len > 0
-				out << 'modules/${kind}/${lip.source.all_before_last('.')}${if ext_a {
+				out << '${lip.dir}/${lip.source.all_before_last('.')}${if ext_a {
 					'.a'
 				} else {
 					lip.object_extension
@@ -208,7 +207,7 @@ fn output_buildfile(conf BuildConf, regen_args []string, cfg &Config, out_src st
 	for kind in c_list {
 		lip := cfg.modules[kind]
 		if lip.language !in ['c', 'cpp'] { continue }
-		c_literal << "'modules/${kind}/${lip.source}'"
+		c_literal << "'${lip.dir}/${lip.source}'"
 	}
 	if c_literal.len > 0 {
 		out.write_string('const c_sources = [${c_literal.join(', ')}]\n')
@@ -258,7 +257,7 @@ fn output_buildfile(conf BuildConf, regen_args []string, cfg &Config, out_src st
 			lip := cfg.modules[e.kind]
 			if lip.language != 'rust' || lip.deps_ext.len == 0 { continue }
 			ext_seen[e.kind] = true
-			mut one := ["'${v_escape(e.kind)}'", "'${v_escape(lip.source)}'"]
+			mut one := ["'${v_escape(e.kind)}'", "'${v_escape(lip.dir)}'", "'${v_escape(lip.source)}'"]
 			for ext in lip.deps_ext {
 				one << "'${v_escape(ext_spelling(ext))}'"
 			}
@@ -369,7 +368,12 @@ fn esc(value string) string {
 	out.write_string('\t\tif os.is_dir(mod_alias) && !os.is_link(mod_alias) {\n')
 	out.write_string("\t\t\treturn error('the modules ' + mod_alias + ' is a real directory; the fetch needs it as a symlink into the repo tree')\n")
 	out.write_string('\t\t}\n')
-	out.write_string('\t\tif !os.is_link(mod_alias) {\n')
+	out.write_string('\t\t// a symlink of another age — the workspace having moved — re-points\n')
+	out.write_string('\t\t// fresh: the alias rides an absolute path.\n')
+	out.write_string('\t\tif os.is_link(mod_alias) {\n')
+	out.write_string('\t\t\tos.rm(mod_alias)!\n')
+	out.write_string('\t\t}\n')
+	out.write_string('\t\tif !os.exists(mod_alias) {\n')
 	out.write_string("\t\t\tos.symlink(os.abs_path('modules'), mod_alias)!\n")
 	out.write_string('\t\t}\n')
 	out.write_string('\t\t// the compiled-language modules build their objects first: the\n')
@@ -384,19 +388,16 @@ fn esc(value string) string {
 	out.write_string('\t\t// the objects const.\n')
 	out.write_string('\t\tfor pair in rust_ext {\n')
 	out.write_string('\t\t\tname := pair[0]\n')
-	out.write_string("			base_file := pair[1].all_before_last('.')\n")
-	out.write_string("			mut manifest := 'modules/'\n")
-	out.write_string('\t\t\tmanifest += pair[0]\n')
-	out.write_string("			manifest += '/Cargo.toml'\n")
+	out.write_string("\t\t\tbase_file := pair[2].all_before_last('.')\n")
+	out.write_string('\t\t\tmut manifest := pair[1]\n')
+	out.write_string("\t\t\tmanifest += '/Cargo.toml'\n")
 	out.write_string("			imp.system_args(['cargo', 'build', '--release', '--manifest-path', manifest])!\n")
-	out.write_string("			mut out_a := 'modules/'\n")
-	out.write_string('\t\t\tout_a += pair[0]\n')
-	out.write_string("			out_a += '/target/release/lib'\n")
+	out.write_string('\t\t\tmut out_a := pair[1]\n')
+	out.write_string("\t\t\tout_a += '/target/release/lib'\n")
 	out.write_string('\t\t\tout_a += name\n')
 	out.write_string("			out_a += '.a'\n")
-	out.write_string("			mut target_a := 'modules/'\n")
-	out.write_string('\t\t\ttarget_a += pair[0]\n')
-	out.write_string("			target_a += '/'\n")
+	out.write_string('\t\t\tmut target_a := pair[1]\n')
+	out.write_string("\t\t\ttarget_a += '/'\n")
 	out.write_string("			target_a += base_file + '.a'\n")
 	out.write_string('			os.cp(out_a, target_a)!\n')
 	out.write_string('\t\t}\n')
@@ -747,7 +748,7 @@ fn v_bake_steps(cfg &Config) []VBakeStep {
 			if e.static_ || e.bt_id < 0 { continue }
 			lip := cfg.modules[e.kind]
 			if lip.language != 'v' { continue }
-			mut step := ['v', 'run', 'modules/${e.kind}/${lip.source}']
+			mut step := ['v', 'run', '${lip.dir}/${lip.source}']
 			if e.arg != '' {
 				step << e.arg
 			}
@@ -768,7 +769,7 @@ fn c_shim(kind string, lip ModuleLip, buf_size int) string {
 	mut out := strings.new_builder(512)
 	out.write_string('\n')
 	out.write_string('// ${kind} is a compiled module: the build script builds it\n')
-	out.write_string('// modules/${kind}/${lip.source} with the fetch, and the shim below\n')
+	out.write_string('// ${lip.dir}/${lip.source} with the fetch, and the shim below\n')
 	out.write_string('// reaches its exported preset through a module-owned buffer.\n')
 	if lip.arg != '' {
 		out.write_string('extern fn ${lip.fname}(arg: [*:0]const u8, buf: [*]u8, buf_size: usize) ?[*:0]const u8;\n')
@@ -846,7 +847,7 @@ fn write_escaped(w: *std.Io.Writer, s: []const u8) !void {
 				out.write_string(c_shim(e.kind, lip, props_of(cfg).buffer_size))
 				continue
 			}
-			out.write_string('const ${e.kind} = @import("modules/${e.kind}/module.zig");\n')
+			out.write_string('const ${e.kind} = @import("${lip.dir}/module.zig");\n')
 		}
 	}
 	out.write_string('\n')
@@ -918,7 +919,7 @@ fn output_source(cfg &Config, confs []string, out_src string, out_bake string, t
 	out.write_string('const std = @import("std");\n')
 	out.write_string('\n')
 	for name in import_names(cfg) {
-		out.write_string('const ${name} = @import("modules/${name}/module.zig");\n')
+		out.write_string('const ${name} = @import("${cfg.modules[name].dir}/module.zig");\n')
 	}
 	mut has_bake := false
 	for source in cfg.sources {
@@ -1139,8 +1140,11 @@ fn output_example_config() string {
 ;
 ; the config is a blip program: (define ...) and any blip expression work,
 ; and evaluated values feed every spelling. every form is one entry, in
-; output order; an entry kind names a subdirectory of modules/ with its own
-; module.lip, and only the referenced modules compile in. with several
+; output order; an entry kind names a module under modules/<language>/ —
+; modules/zig/kind — with its own module.lip, and only the referenced
+; modules compile in. (config :languages [zig c]) selects the language
+; dirs the fetch reads, in lookup order; the whole tree goes by default.
+; with several
 ; -s files the fetch picks one at random on each run.
 ;
 ; strings know the blip escapes (n, t, r, 0, the backslash and the quote)
@@ -1263,7 +1267,7 @@ fn write_ext_projects(cfg &Config) ! {
 			lip := cfg.modules[e.kind]
 			if lip.language != 'rust' || lip.deps_ext.len == 0 { continue }
 			ext_seen[e.kind] = true
-			path := os.join_path_single('modules/${e.kind}', 'Cargo.toml')
+			path := os.join_path_single(lip.dir, 'Cargo.toml')
 			write_out(path, ext_cargo_toml(e.kind, lip))!
 		}
 	}

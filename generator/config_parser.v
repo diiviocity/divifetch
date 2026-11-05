@@ -14,8 +14,9 @@ const esc = '\x1b'
 const nul = '\x00'
 
 // the static entry kinds. every other form head names a dynamic module under
-// modules/ and must come with its own module.lip. forms may spell hyphens
-// where underscores are expected, so kinds are normalized before checking.
+// modules/<language>/ and must come with its own module.lip. forms may spell
+// hyphens where underscores are expected, so kinds are normalized before
+// checking.
 const static_kinds = ['static', 'plain', 'break', 'colors_normal', 'colors_bright']
 
 // colors-normal and colors-bright prebake into plain entries whose key holds

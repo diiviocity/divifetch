@@ -28,6 +28,7 @@ mut:
 	build_time   bool
 	new_print    bool
 	execute      string
+	languages    []string // :languages validates and lands here, then merges into the registry's
 }
 
 // Entry is one line of output. the config's own values are folded in at
@@ -88,6 +89,7 @@ mut:
 	arg              string
 	arg_is_list      bool // the zig preset takes :args as a list
 	language         string = 'zig'
+	dir              string // modules/<language>/<name>: where the module's sources live
 	source           string
 	command          string // a template override, like upstream's module.conf
 	object_extension string = '.o'
@@ -122,6 +124,8 @@ mut:
 	modules    map[string]ModuleLip
 	warned     map[string]bool
 	next_bt_id int
+	languages  []string // the language subdirs of modules/ a lookup walks, in order
+	// (config :languages) merges in; empty walks the whole tree.
 }
 
 // ─── key rendering ────────────────────────────────────────────────────────
@@ -223,6 +227,21 @@ fn (mut p Props) parse_form(cfg &Config, path string, head reader.NodeId, arena 
 			}
 			'execute' {
 				p.execute = str_of(arena, pair.value, path, 'config :execute')!
+			}
+			'languages' {
+				// the language subdirs of modules/ the fetch reads its
+				// modules from, in lookup order: :languages [zig c] walks
+				// modules/zig/ then modules/c/. every spelling merges into
+				// the registry's list; without one the whole tree walks.
+				for spelling in list_of(arena, pair.value, path, 'config :languages')! {
+					lang := normalize_language(spelling)
+					if lang !in accepted_languages {
+						return error(at(path, d, "config :languages holds '${spelling}' — spell one of ${accepted_languages.join(', ')}"))
+					}
+					if lang !in p.languages {
+						p.languages << lang
+					}
+				}
 			}
 			else {
 				return error(at(path, d, 'config has no key :${pair.key}'))
@@ -399,25 +418,58 @@ fn (mut cfg Config) entry_field(path string, kind string, field string, id reade
 
 // ─── module lips ──────────────────────────────────────────────────────────
 
-// load_module reads modules/<name>/module.lip once per module: the
-// (module ...) form names the entry function, the runtime context it gets,
-// and its argument, if any. the zig signature is cross-checked immediately,
-// so a stale lip stops the generator instead of the compiler.
+// language_dirs answers the modules/ subdirs a module lookup walks, in
+// order: the fetch's own :languages list when the config spelled one,
+// the canonical language order otherwise. list_entry_kinds binds kinds
+// through the same order, so a kind found twice in the tree resolves to
+// the same dir the entry loads.
+fn (cfg &Config) language_dirs() []string {
+	if cfg.languages.len > 0 {
+		return cfg.languages
+	}
+	return accepted_languages
+}
+
+// load_module finds modules/<language>/<name>/module.lip once per module:
+// the (module ...) form names the entry function, the runtime context it
+// gets, and its argument, if any. the language dirs walk in the config's
+// :languages order — without one, every shipped language subdir — and the
+// zig signature is cross-checked immediately, so a stale lip stops the
+// generator instead of the compiler.
 fn (mut cfg Config) load_module(name string) !ModuleLip {
 	if name in cfg.modules {
 		return cfg.modules[name]
 	}
-	if !os.is_dir('modules/${name}') {
-		return error("no module called '${name}': modules/${name}/ does not exist")
+	for lang in cfg.language_dirs() {
+		dir := 'modules/${lang}/${name}'
+		if !os.is_dir(dir) {
+			continue
+		}
+		return cfg.load_lip(name, lang, dir)
 	}
-	lip_path := 'modules/${name}/module.lip'
+	dirs := cfg.language_dirs().map('modules/${it}/${name}').join(', ')
+	return error("no module called '${name}': none of ${dirs} exists")
+}
+
+// load_lip reads one module lip out of its language dir: the language a
+// dir declares by holding the module agrees with the lip's own, and the
+// rest of the fields validate as ever.
+fn (mut cfg Config) load_lip(name string, lang string, dir string) !ModuleLip {
+	lip_path := '${dir}/module.lip'
 	text := os.read_file(lip_path) or {
-		return error("module '${name}' has no module.lip: write modules/${name}/module.lip")
+		return error("module '${name}' has no module.lip: write ${lip_path}")
 	}
 	// the lip's forms are blip now: one machine per read, the module
 	// builtin joins the prims so `(define ...)` and any blip expression
 	// feeds the spellings, and the walk rides the synthesized form.
 	mut lip := collect_lip(name, lip_path, text)!
+	lip.dir = dir
+	// the categorized tree keeps the language and the dir in step: a lip
+	// boxed in the wrong language subdir is a generator error, not a
+	// silent one the build discovers later.
+	if lip.language != lang {
+		return error("${lip_path}: modules/${lang}/ takes the ${lang} modules, but the lip says :language '${lip.language}'")
+	}
 	if lip.fname == '' && lip.language != 'v' {
 		return error('${lip_path} needs a :fn')
 	}
@@ -442,7 +494,7 @@ fn (mut cfg Config) load_module(name string) !ModuleLip {
 				}
 			}
 		}
-		cfg.cross_check(name, mut lip)!
+		cfg.cross_check(mut lip)!
 	} else {
 		// the link takes what the lip says, nothing by default: each dep is
 		// a library to name on the link line, and :std stands for this
@@ -487,13 +539,13 @@ fn (mut cfg Config) load_module(name string) !ModuleLip {
 	return lip
 }
 
-fn read_zig_signature(name string, fname string) !ZigSig {
-	text := os.read_file('modules/${name}/module.zig') or {
-		return error('modules/${name}/module.zig is missing, so module.lip cannot be checked')
+fn read_zig_signature(dir string, fname string) !ZigSig {
+	text := os.read_file('${dir}/module.zig') or {
+		return error('${dir}/module.zig is missing, so module.lip cannot be checked')
 	}
 	prefix := 'pub fn ${fname}('
 	idx := text.index(prefix) or {
-		return error("modules/${name}/module.zig has no 'pub fn ${fname}(' for module.lip's :fn")
+		return error("${dir}/module.zig has no 'pub fn ${fname}(' for module.lip's :fn")
 	}
 	start := idx + prefix.len
 	mut depth := 1
@@ -536,8 +588,8 @@ fn read_zig_signature(name string, fname string) !ZigSig {
 
 // cross_check compares the lip against the zig source it describes, so a
 // mismatch reads as a generator error instead of a compile error later.
-fn (cfg &Config) cross_check(name string, mut lip ModuleLip) ! {
-	sig := read_zig_signature(name, lip.fname)!
+fn (cfg &Config) cross_check(mut lip ModuleLip) ! {
+	sig := read_zig_signature(lip.dir, lip.fname)!
 	lip.arg_is_list = sig.list_arg
 	deps_str := if lip.deps_io && lip.deps_env {
 		'[:io :environ]'
@@ -549,28 +601,28 @@ fn (cfg &Config) cross_check(name string, mut lip ModuleLip) ! {
 		'[]'
 	}
 	if sig.io && !lip.deps_io {
-		return error('modules/${name}/module.lip: :deps is ${deps_str}, but ${lip.fname}() reads io — add :io')
+		return error('${lip.dir}/module.lip: :deps is ${deps_str}, but ${lip.fname}() reads io — add :io')
 	}
 	if !sig.io && lip.deps_io {
-		return error('modules/${name}/module.lip: :deps is ${deps_str}, but ${lip.fname}() reads no io — drop :io')
+		return error('${lip.dir}/module.lip: :deps is ${deps_str}, but ${lip.fname}() reads no io — drop :io')
 	}
 	if sig.env && !lip.deps_env {
-		return error('modules/${name}/module.lip: :deps is ${deps_str}, but ${lip.fname}() reads the environment — add :environ')
+		return error('${lip.dir}/module.lip: :deps is ${deps_str}, but ${lip.fname}() reads the environment — add :environ')
 	}
 	if !sig.env && lip.deps_env {
-		return error('modules/${name}/module.lip: :deps is ${deps_str}, but ${lip.fname}() reads no environment — drop :environ')
+		return error('${lip.dir}/module.lip: :deps is ${deps_str}, but ${lip.fname}() reads no environment — drop :environ')
 	}
 	if sig.args.len > 1 {
-		return error('modules/${name}/module.zig: ${lip.fname}() takes ${sig.args.len} arguments — lips carry one at most')
+		return error('${lip.dir}/module.zig: ${lip.fname}() takes ${sig.args.len} arguments — lips carry one at most')
 	}
 	if sig.args.len == 1 && lip.arg == '' {
-		return error("modules/${name}/module.lip: ${lip.fname}() takes the '${sig.args[0]}' argument — add :arg :${sig.args[0]}")
+		return error("${lip.dir}/module.lip: ${lip.fname}() takes the '${sig.args[0]}' argument — add :arg :${sig.args[0]}")
 	}
 	if sig.args.len == 0 && lip.arg != '' {
-		return error('modules/${name}/module.lip: :arg :${lip.arg}, but ${lip.fname}() takes no argument — drop :arg')
+		return error('${lip.dir}/module.lip: :arg :${lip.arg}, but ${lip.fname}() takes no argument — drop :arg')
 	}
 	if sig.args.len == 1 && lip.arg != '' && lip.arg != sig.args[0] {
-		return error("modules/${name}/module.lip: :arg :${lip.arg}, but module.zig names the argument '${sig.args[0]}'")
+		return error("${lip.dir}/module.lip: :arg :${lip.arg}, but module.zig names the argument '${sig.args[0]}'")
 	}
 }
 

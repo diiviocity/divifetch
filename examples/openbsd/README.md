@@ -7,7 +7,7 @@ openbsd answers without config changes — each module branches
 comptime on the target OS the way upstream V's `$if openbsd` did, one
 binary per OS target from one module tree.
 
-what answers what on openbsd (modules/openbsd.zig carries the ABI
+what answers what on openbsd (modules/zig/openbsd.zig carries the ABI
 transcribed from the sysroot's headers):
 
 memory/swap: hw.physmem + vm.uvmexp page counters

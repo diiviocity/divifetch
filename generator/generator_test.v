@@ -21,7 +21,7 @@ fn collected_tree() !Config {
 }
 
 // a c-shaped registry, hand-built the way load_module would have found
-// modules/hello_world_c. the tree returns by value; tests that grow it
+// modules/c/hello_world_c. the tree returns by value; tests that grow it
 // take mut Config and fill it in.
 fn c_shaped_tree() Config {
 	mut cfg := Config{
@@ -35,6 +35,7 @@ fn c_shaped_tree() Config {
 		name:     'hello_world_c'
 		fname:    'hello_world_c_module_preset'
 		language: 'c'
+		dir:      'modules/c/hello_world_c'
 		source:   'module.c'
 	}
 	cfg.sources[0].props.buffer_size = 256
@@ -82,6 +83,7 @@ fn test_c_shim_passes_the_arg_first() {
 		name:     'hello_world_c'
 		fname:    'hello_world_c_module_preset'
 		language: 'c'
+		dir:      'modules/c/hello_world_c'
 		source:   'module.c'
 		arg:      'path'
 	}
@@ -123,7 +125,7 @@ fn test_headgen_holds_only_zig_imports() {
 	text := output_headgen(&cfg, ['f.lip'])
 	assert text.contains('const std = @import("std");')
 	// baked here: packages, the only zig-kind build-time entry.
-	assert text.contains('const packages = @import("modules/packages/module.zig");')
+	assert text.contains('const packages = @import("modules/zig/packages/module.zig");')
 	assert !text.contains('const kernel = ')
 	assert !text.contains('const shell = ')
 	assert text.contains('fn write_escaped(w: *std.Io.Writer, s: []const u8) !void {')
@@ -143,6 +145,7 @@ fn test_bake_split_work() {
 	mut cfg := collected_tree()!
 	cfg.modules['hello_world_v'] = ModuleLip{
 		name:     'hello_world_v'
+		dir:      'modules/v/hello_world_v'
 		language: 'v'
 		source:   'module.v'
 		arg:      'text'
@@ -160,7 +163,7 @@ fn test_bake_split_work() {
 	steps := v_bake_steps(&cfg)
 	assert steps.len == 1
 	assert steps[0].id == 1
-	assert steps[0].argv == ['v', 'run', 'modules/hello_world_v/module.v', 'echo me']
+	assert steps[0].argv == ['v', 'run', 'modules/v/hello_world_v/module.v', 'echo me']
 }
 
 fn test_v_bake_steps_skip_zig_and_c_entries() {
@@ -182,8 +185,8 @@ fn test_output_source_imports_and_bake() {
 	mut cfg := collected_tree()!
 	text := output_source(&cfg, ['tree.lip'], '.tmp/run.zig', '.tmp/bake.zig', false)
 	assert text.contains('const std = @import("std");')
-	assert text.contains('const kernel = @import("modules/kernel/module.zig");')
-	assert text.contains('const shell = @import("modules/shell/module.zig");')
+	assert text.contains('const kernel = @import("modules/zig/kernel/module.zig");')
+	assert text.contains('const shell = @import("modules/zig/shell/module.zig");')
 	assert !text.contains('const packages = @import(')
 	assert text.contains('const bake = @import("bake.zig");')
 	// the environ line only shows when a runtime entry asks for it.
@@ -235,6 +238,7 @@ fn test_output_headgen_skips_v_entries() {
 	mut cfg := collected_tree()!
 	cfg.modules['hello_world_v'] = ModuleLip{
 		name:     'hello_world_v'
+		dir:      'modules/v/hello_world_v'
 		language: 'v'
 		source:   'module.v'
 	}
@@ -340,7 +344,7 @@ fn test_output_buildfile_consts() {
 	assert text.contains("ctx.default(['build'])")
 	assert text.contains('import x.imp')
 	// the rust source rides the crate's [lib path], never the zig argv.
-	assert !text.contains("const c_sources = ['modules/hello_world_rustix")
+	assert !text.contains("const c_sources = ['modules/rust/hello_world_rustix")
 	assert text.contains('const objects = []string{}')
 	assert text.contains('const compile_steps = [][]string{}')
 	assert text.contains('const compile_shells = []string{}')
@@ -370,6 +374,7 @@ fn test_output_buildfile_emits_the_v_bakes_and_ids() {
 	mut cfg := c_shaped_tree()
 	cfg.modules['hello_world_v'] = ModuleLip{
 		name:     'hello_world_v'
+		dir:      'modules/v/hello_world_v'
 		language: 'v'
 		source:   'module.v'
 		arg:      'text'
@@ -384,7 +389,7 @@ fn test_output_buildfile_emits_the_v_bakes_and_ids() {
 		line:       4
 	}
 	text := output_buildfile(BuildConf{}, build_regen_args(build_opts()), &cfg, '.tmp/run.zig', '.tmp/bake.zig', '.tmp/run-run.zig')
-	assert text.contains("const v_bakes = [['v', 'run', 'modules/hello_world_v/module.v', 'hi there']]")
+	assert text.contains("const v_bakes = [['v', 'run', 'modules/v/hello_world_v/module.v', 'hi there']]")
 	assert text.contains('const v_bake_ids = [0]')
 	assert text.contains('fn esc(value string) string {')
 	assert text.contains('bake_out += \'pub const bt_\' + v_bake_ids[i].str() + \' = "\' + esc(baked.output.trim_space())')
@@ -393,7 +398,7 @@ fn test_output_buildfile_emits_the_v_bakes_and_ids() {
 fn test_output_buildfile_gains_the_c_source_args() {
 	mut cfg := c_shaped_tree()
 	text := output_buildfile(BuildConf{}, build_regen_args(build_opts()), &cfg, '.tmp/run.zig', '.tmp/bake.zig', '.tmp/run-run.zig')
-	assert text.contains("const c_sources = ['modules/hello_world_c/module.c']")
+	assert text.contains("const c_sources = ['modules/c/hello_world_c/module.c']")
 	// nothing links by default: a lip without :deps keeps the link bare.
 	assert text.contains('const extra_link = []string{}')
 }
@@ -422,13 +427,13 @@ fn test_output_buildfile_steps_carry_the_d_recipe() {
 	cfg.modules['hello_world_c'].language = 'd'
 	cfg.modules['hello_world_c'].source = 'module.d'
 	better := output_buildfile(BuildConf{}, build_regen_args(build_opts()), &cfg, '.tmp/run.zig', '.tmp/bake.zig', '.tmp/run-run.zig')
-	assert better.contains("const compile_steps = [['dmd', '-c', '-betterC', '-of=modules/hello_world_c/module.o', 'modules/hello_world_c/module.d']]")
-	assert better.contains("const objects = ['modules/hello_world_c/module.o']")
+	assert better.contains("const compile_steps = [['dmd', '-c', '-betterC', '-of=modules/c/hello_world_c/module.o', 'modules/c/hello_world_c/module.d']]")
+	assert better.contains("const objects = ['modules/c/hello_world_c/module.o']")
 	// :std compiles full d and the object joins the phobos link.
 	cfg.modules['hello_world_c'].deps_std = true
 	full := output_buildfile(BuildConf{}, build_regen_args(build_opts()), &cfg, '.tmp/run.zig', '.tmp/bake.zig', '.tmp/run-run.zig')
 	assert !full.contains('-betterC')
-	assert full.contains('-of=modules/hello_world_c/module.o')
+	assert full.contains('-of=modules/c/hello_world_c/module.o')
 }
 
 fn test_output_buildfile_carries_the_rust_ext_pairs() {
@@ -443,11 +448,11 @@ fn test_output_buildfile_carries_the_rust_ext_pairs() {
 		line: 4
 	}
 	text := output_buildfile(BuildConf{}, build_regen_args(build_opts()), &cfg, '.tmp/run.zig', '.tmp/bake.zig', '.tmp/run-run.zig')
-	assert text.contains("const rust_ext = [['hello_world_rustix', 'module.rs', 'rustix 1.1.* features=[system]']]")
+	assert text.contains("const rust_ext = [['hello_world_rustix', 'modules/rust/hello_world_rustix', 'module.rs', 'rustix 1.1.* features=[system]']]")
 	// the archive rides the objects const, not the zig argv.
-	assert text.contains("const objects = ['modules/hello_world_rustix/module.a']")
+	assert text.contains("const objects = ['modules/rust/hello_world_rustix/module.a']")
 	// the rust source rides the crate's [lib path], never the zig argv.
-	assert !text.contains("const c_sources = ['modules/hello_world_rustix")
+	assert !text.contains("const c_sources = ['modules/rust/hello_world_rustix")
 	// std carries libc, libunwind answers the std backtrace branches.
 	assert text.contains("const extra_link = ['-lc', '-lunwind']")
 	// the plain rustc recipe does not run for the ext module: cargo does.
@@ -499,7 +504,7 @@ fn test_write_ext_projects_lays_the_manifests() {
 	}
 	write_ext_projects(cfg)!
 	write_ext_projects(cfg)!
-	path := os.join_path_single('modules/hello_world_rustix', 'Cargo.toml')
+	path := os.join_path_single('modules/rust/hello_world_rustix', 'Cargo.toml')
 	manifest := os.read_file(path)!
 	assert manifest.contains('[dependencies]')
 	assert manifest.contains('rustix = { version = "1.1.*", features = ["system"] }')
@@ -527,8 +532,8 @@ fn test_output_buildfile_nostd_links_bare() {
 		line: 4
 	}
 	text := output_buildfile(BuildConf{}, build_regen_args(build_opts()), &cfg, '.tmp/run.zig', '.tmp/bake.zig', '.tmp/run-run.zig')
-	assert text.contains("const rust_ext = [['hello_world_rustix_nostd', 'module.rs', 'rustix 1.1.* no-default-features features=[system]']]")
-	assert text.contains("const objects = ['modules/hello_world_rustix_nostd/module.a']")
+	assert text.contains("const rust_ext = [['hello_world_rustix_nostd', 'modules/rust/hello_world_rustix_nostd', 'module.rs', 'rustix 1.1.* no-default-features features=[system]']]")
+	assert text.contains("const objects = ['modules/rust/hello_world_rustix_nostd/module.a']")
 	assert text.contains('const extra_link = []string{}')
 }
 
@@ -677,7 +682,7 @@ fn test_output_example_config_holds_the_shapes() {
 	assert example.contains(':key-prefix dark')
 	assert example.contains('(define dark "')
 	assert example.contains('(define (mount_p path)')
-	assert example.contains('(mount_p "/home")')
+	assert example.contains('(mount_p "/")')
 	assert example.contains(';(run :bin "zsh")')
 	assert example.contains('(colors_bright)') && example.contains('(colors_normal)')
 	assert example.contains('(break)')
@@ -799,10 +804,10 @@ fn test_normalize_language_unifies_spellings() {
 
 fn test_cpp_module_uses_the_default_source_and_shim() {
 	os.chdir(fixture_dir)!
-	mkdir_one('modules/hw_cpp', 'module.lip', '(module :language "c++" :fn "hw_cpp_module_preset")')
+	mkdir_one('modules/cpp/hw_cpp', 'module.lip', '(module :language "c++" :fn "hw_cpp_module_preset")')
 	defer {
-		os.rm('modules/hw_cpp/module.lip') or {}
-		os.rmdir('modules/hw_cpp') or {}
+		os.rm('modules/cpp/hw_cpp/module.lip') or {}
+		os.rmdir('modules/cpp/hw_cpp') or {}
 	}
 	mut cfg := collected('(hw_cpp)')!
 	lip := cfg.modules['hw_cpp']
@@ -817,10 +822,10 @@ fn test_cpp_module_uses_the_default_source_and_shim() {
 
 fn test_rust_module_hands_the_object_to_zig() {
 	os.chdir(fixture_dir)!
-	mkdir_one('modules/hw_rust', 'module.lip', '(module :language "rust" :fn "hw_rust_module_preset")')
+	mkdir_one('modules/rust/hw_rust', 'module.lip', '(module :language "rust" :fn "hw_rust_module_preset")')
 	defer {
-		os.rm('modules/hw_rust/module.lip') or {}
-		os.rmdir('modules/hw_rust') or {}
+		os.rm('modules/rust/hw_rust/module.lip') or {}
+		os.rmdir('modules/rust/hw_rust') or {}
 	}
 	mut cfg := collected('(hw_rust)')!
 	assert cfg.modules['hw_rust'].source == 'module.rs'
@@ -838,6 +843,7 @@ fn test_compile_steps_cookie_the_rust_staticlib() {
 		name:     'hw_rust'
 		fname:    'hw_rust_module_preset'
 		language: 'rust'
+		dir:      'modules/rust/hw_rust'
 		source:   'module.rs'
 	}
 	cfg.sources[0].entries << Entry{
@@ -849,10 +855,10 @@ fn test_compile_steps_cookie_the_rust_staticlib() {
 	assert steps.len == 1
 	assert steps[0].shell == ''
 	assert steps[0].argv == ['rustc', '--crate-type', 'staticlib', '-C', 'opt-level=2', '-o',
-		'modules/hw_rust/module.o', 'modules/hw_rust/module.rs']
+		'modules/rust/hw_rust/module.o', 'modules/rust/hw_rust/module.rs']
 	// the object is what zig links.
 	objects := object_outputs(&cfg)
-	assert objects == ['modules/hw_rust/module.o']
+	assert objects == ['modules/rust/hw_rust/module.o']
 }
 
 fn test_template_expand_fills_the_slots() {
@@ -868,6 +874,7 @@ fn test_compile_steps_run_the_template_command() {
 		name:             'hw_cpp2'
 		fname:            'preset'
 		language:         'cpp'
+		dir:              'modules/cpp/hw_cpp2'
 		source:           'module.cpp'
 		command:          'g++ -c ' + '$' + '{source_file} -o ' + '$' + '{output_file}'
 		object_extension: '.o'
@@ -879,18 +886,18 @@ fn test_compile_steps_run_the_template_command() {
 	}
 	steps := compile_steps(&cfg, 'g++')
 	assert steps.len == 1
-	assert steps[0].shell == 'g++ -c modules/hw_cpp2/module.cpp -o modules/hw_cpp2/module.o'
+	assert steps[0].shell == 'g++ -c modules/cpp/hw_cpp2/module.cpp -o modules/cpp/hw_cpp2/module.o'
 	// and its object rides the zig link beside the c sources.
 	objects := object_outputs(&cfg)
-	assert objects == ['modules/hw_cpp2/module.o']
+	assert objects == ['modules/cpp/hw_cpp2/module.o']
 }
 
 fn test_v_module_command_rejected() {
 	os.chdir(fixture_dir)!
-	mkdir_one('modules/v_bad', 'module.lip', '(module :language "v" :command "go")')
+	mkdir_one('modules/v/v_bad', 'module.lip', '(module :language "v" :command "go")')
 	defer {
-		os.rm('modules/v_bad/module.lip') or {}
-		os.rmdir('modules/v_bad') or {}
+		os.rm('modules/v/v_bad/module.lip') or {}
+		os.rmdir('modules/v/v_bad') or {}
 	}
 	collected('(v_bad :build-time yes)') or {
 		assert err.msg().contains(':command applies to the compiled languages (c, cpp, rust, d)')

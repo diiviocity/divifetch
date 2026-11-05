@@ -238,6 +238,13 @@ fn (mut ev EvCollector) config_prim() blip.PrimFn {
 		mut props := ev.cfg.sources[ev.file_ix].props
 		props.parse_form(ev.cfg, ev.path, form, ev.arena)!
 		ev.cfg.sources[ev.file_ix].props = props
+		// the fetch's own :languages land in the registry: a lookup walks
+		// exactly the dirs the config spelled, in its order.
+		for lang in props.languages {
+			if lang !in ev.cfg.languages {
+				ev.cfg.languages << lang
+			}
+		}
 		return blip.nil_value()
 	}
 }
@@ -273,20 +280,32 @@ fn (mut ev EvCollector) build_prim() blip.PrimFn {
 
 // list_entry_kinds gathers every module dir that ships a module.lip: the
 // entry-kind spellings the builtins bind, one prim per kind so the
-// kinds' forms land without the walk's head-value dance.
+// kinds' forms land without the walk's head-value dance. the tree sorts
+// itself by language (modules/<language>/<name>), so the walk goes over
+// the canonical language order and a name found twice resolves to the
+// dir load_module finds first.
 fn list_entry_kinds() []string {
 	if !os.is_dir('modules') {
 		return []
 	}
 	mut kinds := []string{}
-	for name in os.ls('modules') or { return []string{} } {
-		if !os.is_dir('modules/${name}') {
+	for lang in accepted_languages {
+		lang_dir := 'modules/${lang}'
+		if !os.is_dir(lang_dir) {
 			continue
 		}
-		if !os.exists('modules/${name}/module.lip') {
-			continue
+		for name in os.ls(lang_dir) or { continue } {
+			if !os.is_dir('${lang_dir}/${name}') {
+				continue
+			}
+			if !os.exists('${lang_dir}/${name}/module.lip') {
+				continue
+			}
+			if name in kinds {
+				continue
+			}
+			kinds << name
 		}
-		kinds << name
 	}
 	return kinds
 }
@@ -345,7 +364,7 @@ fn collect_config(confs []string) !Config {
 					name := msg.all_after_last('unbound identifier: ')
 					norm := normalize_name(name)
 					if !(norm in bound || name in bound) {
-						return error("no module called '${name}': modules/${name}/ does not exist")
+						return error("no module called '${name}': no modules/<language>/${name}/ exists")
 					}
 				}
 				return error(msg)
