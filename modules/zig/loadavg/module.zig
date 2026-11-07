@@ -19,6 +19,12 @@ pub fn preset() []const u8 {
         if (!f.loadavg(&avg)) return "?";
         return std.mem.print(&value_buf, "{d:.2} {d:.2} {d:.2}", .{ avg[0], avg[1], avg[2] }) catch "?";
     }
+    if (@import("builtin").os.tag == .macos) {
+        const m = @import("../macos.zig");
+        var avg: [3]f64 = undefined;
+        if (!m.loadavg(&avg)) return "?";
+        return std.mem.print(&value_buf, "{d:.2} {d:.2} {d:.2}", .{ avg[0], avg[1], avg[2] }) catch "?";
+    }
     const line = util.readFirstLine("/proc/loadavg", &line_buf) orelse return "?";
 
     var pos: usize = 0;

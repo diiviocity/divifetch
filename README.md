@@ -8,16 +8,17 @@
 
 divifetch is a build-time fetch script compiler.
 
-it reads a simple config file and generates a Zig program that renders ASCII art with dynamic content from pluggable modules.
+it reads a simple config file and generates a program that renders ASCII art with dynamic content from pluggable modules.
 
 unlike other fetch scripts that parse configs and fork processes at every run, divifetch moves most of the work to compile time - producing a binary that's faster, smaller, and dependency-freer than any traditional fetch script could be.
 
 ## >> FEATURES >>
-
 - everything is hard-coded and statically batched
 - strict no dead code policy
-- runtime dependency-free due to static linking
+- runtime dependency-free due to static linking (except macOS)
+- support for Linux, macOS, FreeBSD and OpenBSD
 - easily extensible module system
+- multiple backends (V, Zig)
 - polyglot module support (C, C++, Rust, D, V)
 - multi-config random selection
 - Unicode and ANSI escape code support
@@ -25,12 +26,15 @@ unlike other fetch scripts that parse configs and fork processes at every run, d
 ## >> PREREQUISITES >>
 
 - [V](https://vlang.io/) compiler (0.5.2)
-- [Zig](https://ziglang.org/) compiler (0.17.x)
 - [blip](https://git.vorelabs.dev/vorelabs/blip) machine
+- [Zig](https://ziglang.org/) compiler (only for Zig backend) (0.17.x)
 
 ## >> GETTING STARTED >>
 
 ```shell
+# install blip
+v install https://git.vorelabs.dev/vorelabs/blip.git
+
 # clone the repo
 git clone https://git.vorelabs.dev/vorelabs/divifetch.git
 cd divifetch

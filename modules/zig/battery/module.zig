@@ -1,6 +1,7 @@
 // battery module: capacity + status of the first BAT* power supply
 // (the BSDs read the same pair from the kernel's power tree: openbsd
-// out of the apm device, freebsd out of hw.acpi.battery.*).
+// out of the apm device, freebsd out of hw.acpi.battery.*; macOS asks
+// IOKit's power sources, the pmset(1) keys, dlopen'd).
 const std = @import("std");
 const util = @import("../util.zig");
 
@@ -10,6 +11,11 @@ var cap_buf: [32]u8 = undefined;
 var status_buf: [32]u8 = undefined;
 
 pub fn preset(io: std.Io) []const u8 {
+    if (@import("builtin").os.tag == .macos) {
+        const m = @import("../macos.zig");
+        const bat = m.battery() orelse return "?";
+        return std.mem.print(&value_buf, "{d}% ({s})", .{ bat.percent, bat.status }) catch "?";
+    }
     if (@import("builtin").os.tag == .freebsd) {
         const f = @import("../freebsd.zig");
         const life_raw = f.batteryLife() orelse return "?";

@@ -17,7 +17,7 @@ loadavg: getloadavg(3)
 cpu: hw.model + hw.ncpuonline + hw.cpuspeed
 battery: the apm device (APM_IOC_GETPOWER)
 host: hw.product with hw.vendor backing it up
-os: "OpenBSD <release>" from uname
+distro: "OpenBSD <release>" from uname
 shell/terminal: the /proc walk rides kern.proc.pid,<pid> kinfo structs
 pid1: pid 1's p_comm from the same kinfo read
 vpn: libc getifaddrs(3) for tun*/wg*/tap*/ppp

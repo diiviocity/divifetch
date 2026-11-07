@@ -1,0 +1,4 @@
+;; host module — DMI product_name with board_name fallback.
+(module
+	:language "v"
+	:fn "preset")

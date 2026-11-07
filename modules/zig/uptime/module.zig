@@ -23,8 +23,10 @@ pub fn preset() []const u8 {
             return std.mem.print(&value_buf, "{d}h {d}m", .{ h, m }) catch "?";
         return std.mem.print(&value_buf, "{d}m {d}s", .{ m, s }) catch "?";
     }
-    if (@import("builtin").os.tag == .freebsd) {
-        const f = @import("../freebsd.zig");
+    const tag = @import("builtin").os.tag;
+    if (tag == .freebsd or tag == .macos) {
+        // macOS keeps the same kern.boottime timeval freebsd does.
+        const f = if (tag == .freebsd) @import("../freebsd.zig") else @import("../macos.zig");
         var s: u64 = f.uptimeSeconds() orelse return "?";
         const d = s / 86400;
         s %= 86400;

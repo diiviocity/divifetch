@@ -1,0 +1,4 @@
+;; boot module — UEFI vs BIOS via the presence of efivars.
+(module
+	:language "v"
+	:fn "preset")

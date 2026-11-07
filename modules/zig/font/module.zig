@@ -469,7 +469,9 @@ fn stFont(io: std.Io, info: terminal.Info, environ: *const std.process.Environ.M
         }
     }
 
-    // 2) scrape the binary.
+    // 2) scrape the binary. /proc/<pid>/exe and the raw readlink
+    // syscall are linux's alone (XNU numbers its syscalls differently).
+    if (@import("builtin").os.tag != .linux) return null;
     var rp_buf: [64:0]u8 = undefined;
     const epath = std.mem.print(&rp_buf, "/proc/{d}/exe", .{info.pid}) catch return null;
     var exe_buf: [128]u8 = undefined;
@@ -483,7 +485,7 @@ fn stFont(io: std.Io, info: terminal.Info, environ: *const std.process.Environ.M
     const exe = exe_buf[0..@intCast(exe_len)];
 
     const fd = std.posix.openat(std.posix.AT.FDCWD, exe, .{ .ACCMODE = .RDONLY }, 0) catch return null;
-    defer _ = std.os.linux.close(fd);
+    defer util.closeFdAny(fd);
 
     // Chunked NUL-string scan to EOF: scrape_buf is a fixed window, the
     // file itself can be far bigger (st's config strings live in

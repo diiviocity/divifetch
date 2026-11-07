@@ -19,6 +19,18 @@ const nul = '\x00'
 // checking.
 const static_kinds = ['static', 'plain', 'break', 'colors_normal', 'colors_bright']
 
+// blip_machine_builtins is the list of names blip's machine answers
+// itself, before the prims table ever fires (copied from blip's own
+// machine_builtin list — vlib blip machine mod.v). a module kind that
+// carries one is unreachable as an entry: (display) would print its
+// arguments instead of parsing, silently. list_entry_kinds holds these
+// back from the bindings, so a colliding kind reads as the walker's
+// standard 'no module called' instead of a mystery (display) print.
+const blip_machine_builtins = ['apply', 'error', 'raise', 'format', 'gensym', 'print', 'display',
+	'echo', 'read-line', 'map', 'filter', 'reject', 'keep', 'fold', 'reduce', 'for-each', 'vector-map',
+	'any?', 'every?', 'sort-by', 'ok', 'err', 'ok?', 'err?', 'ok-value', 'err-value', 'map-result',
+	'unwrap-or', 'try-result', 'lazy-unwrap', 'lazy-map-result', 'flatten-result', 'all-results']
+
 // colors-normal and colors-bright prebake into plain entries whose key holds
 // the bg-colored blocks, like the C generator did: eight 3-space blocks and
 // a trailing reset.

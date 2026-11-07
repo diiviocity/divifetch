@@ -8,6 +8,7 @@
 const std = @import("std");
 const is_openbsd = @import("builtin").os.tag == .openbsd;
 const is_freebsd = @import("builtin").os.tag == .freebsd;
+const is_macos = @import("builtin").os.tag == .macos;
 
 /// Reads a whole file (smaller than `buf`) into `buf`.
 /// Returns null if the file cannot be opened or read at all.
@@ -138,9 +139,14 @@ pub fn extractVersion(s: []const u8) []const u8 {
 }
 
 /// close for the fds the file-readers opened: the linux build rides its
-/// own close syscall, openbsd gets libc's (this fork's std.posix has no
-/// close to lean on).
-fn closeFdAny(fd: std.posix.fd_t) void {
+/// own close syscall, the BSDs and macOS get libc's (this fork's
+/// std.posix has no close to lean on). pub: modules that open their own
+/// fds close them here rather than through a linux-only syscall.
+pub fn closeFdAny(fd: std.posix.fd_t) void {
+    if (is_macos) {
+        @import("./macos.zig").closeFd(fd);
+        return;
+    }
     if (is_openbsd) {
         @import("./openbsd.zig").closeFd(fd);
         return;
@@ -171,10 +177,15 @@ pub fn inListIgnoreCase(name: []const u8, list: []const []const u8) bool {
 /// Parses /proc/<pid>/stat: returns comm (inside the parentheses) and ppid.
 /// comm points into a module-local buffer, valid until the next procStat call.
 pub fn procStat(pid: std.posix.pid_t) ?struct { comm: []const u8, ppid: std.posix.pid_t } {
-    if (is_openbsd or is_freebsd) {
-        // the BSDs have no procfs; kern.proc.pid,<pid> answers instead,
-        // with each kernel's own kinfo_proc shape.
-        const helper = if (is_openbsd) @import("./openbsd.zig") else @import("./freebsd.zig");
+    if (is_openbsd or is_freebsd or is_macos) {
+        // the BSDs and macOS have no procfs; kern.proc.pid,<pid> answers
+        // instead, with each kernel's own kinfo_proc shape.
+        const helper = if (is_openbsd)
+            @import("./openbsd.zig")
+        else if (is_freebsd)
+            @import("./freebsd.zig")
+        else
+            @import("./macos.zig");
         const info = helper.procInfo(pid) orelse return null;
         return .{ .comm = info.comm, .ppid = info.ppid };
     }

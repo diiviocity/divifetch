@@ -1,4 +1,4 @@
-// OS module: distribution name from /etc/os-release (the BSDs answer
+// distro module: distribution name from /etc/os-release (the BSDs answer
 // "<BSD> <release>" from the libc uname, since std.c's utsname stays
 // void for them: freebsd's libc inlines uname onto __xuname).
 // Mirrors the old C modules: fill a static buffer, return a slice of it.
@@ -24,6 +24,16 @@ pub fn preset() []const u8 {
         var rel_buf: [32]u8 = undefined;
         const release = f.unameField(.release, &rel_buf) orelse return "FreeBSD";
         return std.mem.print(&value_buf, "FreeBSD {s}", .{release}) catch "FreeBSD";
+    }
+    if (@import("builtin").os.tag == .macos) {
+        // no os-release either; kern.osproductversion answers the About
+        // window's version, the major names it: "macOS Sequoia 15.1".
+        const m = @import("../macos.zig");
+        var ver_buf: [32]u8 = undefined;
+        const version = m.productVersion(&ver_buf) orelse return "macOS";
+        if (m.codename(version)) |name|
+            return std.mem.print(&value_buf, "macOS {s} {s}", .{ name, version }) catch "macOS";
+        return std.mem.print(&value_buf, "macOS {s}", .{version}) catch "macOS";
     }
     const fd = std.posix.openat(std.posix.AT.FDCWD, "/etc/os-release", .{ .ACCMODE = .RDONLY }, 0) catch
         return "unknown";

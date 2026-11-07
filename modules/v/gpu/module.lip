@@ -1,0 +1,4 @@
+;; gpu module — GPU(s) via /sys/class/drm, vendor + driver, zero spawn.
+(module
+	:language "v"
+	:fn "preset")

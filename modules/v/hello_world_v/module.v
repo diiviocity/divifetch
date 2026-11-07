@@ -10,6 +10,7 @@
 // argument pipeline is visible in the sample.
 import os
 
+@[direct_array_access]
 fn main() {
 	if os.args.len > 1 {
 		println(os.args[1..].join(' '))

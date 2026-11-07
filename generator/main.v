@@ -67,6 +67,22 @@ fn print_error(msg string) {
 	eprintln('generator: ${msg}')
 }
 
+// v_backend_paths swaps the default .zig output spellings for the V
+// backend's, where the generated program is a directory of its own: the
+// entry source, the bake const file, and — the twin — its own dir, one
+// main per program. a flag the build spelled keeps its value.
+fn v_backend_paths(mut opt CliOpts) {
+	if opt.out_src == '.tmp/run.zig' {
+		opt.out_src = '.tmp/vfetch/run.v'
+	}
+	if opt.out_run_src == '.tmp/run-run.zig' {
+		opt.out_run_src = '.tmp/vfetch-run/run-run.v'
+	}
+	if opt.out_bake == '.tmp/bake.zig' {
+		opt.out_bake = '.tmp/vfetch/bake.v'
+	}
+}
+
 // write_out writes one generated file, creating its directory first, so a
 // .tmp/ path needs no prep.
 fn write_out(path string, contents string) ! {
@@ -127,36 +143,103 @@ fn main() {
 		println('generated the example config file: ${opt.out_conf}')
 	}
 	if opt.task_source {
-		write_out(opt.out_src, output_source(&cfg, opt.source_confs, opt.out_src, opt.out_bake, false)) or {
-			print_error('cannot write ${opt.out_src}: ${err.msg()}')
-			exit(1)
-		}
-		println('generated the fetch entry source: ${opt.out_src}')
-		if sources_have_runs(&cfg) {
-			write_out(opt.out_run_src, output_source(&cfg, opt.source_confs, opt.out_run_src, opt.out_bake, true)) or {
-				print_error('cannot write ${opt.out_run_src}: ${err.msg()}')
+		if backend_of(cfg) == 'v' {
+			v_backend_paths(mut opt)
+			src_v := output_source_v(&cfg, opt.source_confs, false) or {
+				print_error(err.msg())
 				exit(1)
 			}
-			println('generated the divifetch-run twin source: ${opt.out_run_src}')
-		}
-		write_ext_projects(cfg) or {
-			print_error('cannot write the extern crate projects: ${err.msg()}')
-			exit(1)
-		}
-		if has_headgen {
-			write_out(opt.out_headgen, output_headgen(&cfg, opt.source_confs)) or {
-				print_error('cannot write ${opt.out_headgen}: ${err.msg()}')
+			write_out(opt.out_src, src_v) or {
+				print_error('cannot write ${opt.out_src}: ${err.msg()}')
 				exit(1)
 			}
-			println('generated the build-time bake program: ${opt.out_headgen}')
+			// bake wrappers for build-time V preset modules: a single
+			// importable module cannot be `v run` directly, so each one
+			// gets a tiny main that calls its preset with the entry args.
+			mut seen_wrap := map[string]bool{}
+			for source in cfg.sources {
+				for e in source.entries {
+					if e.static_ || e.bt_id < 0 { continue }
+					lip := cfg.modules[e.kind]
+					if lip.language != 'v' || lip.fname == '' { continue }
+					if e.kind in seen_wrap { continue }
+					seen_wrap[e.kind] = true
+					mut w := ''
+					if lip.arg_is_list || lip.arg != '' {
+						w += 'import os\n'
+					}
+					w += 'import ${e.kind}\n\n'
+					w += 'fn main() {\n'
+					if lip.arg_is_list {
+						w += '    if os.args.len > 1 {\n'
+						w += '        println(${e.kind}.preset(os.args[1..]))\n'
+						w += '    } else {\n'
+						w += '        println(${e.kind}.preset([]string{}))\n'
+						w += '    }\n'
+					} else if lip.arg != '' {
+						w += '    if os.args.len > 1 {\n'
+						w += '        println(${e.kind}.preset(os.args[1]))\n'
+						w += '    } else {\n'
+						w += "        println(${e.kind}.preset(''))\n"
+						w += '    }\n'
+					} else {
+						w += '    println(${e.kind}.preset())\n'
+					}
+					w += '}\n'
+					write_out('.tmp/vfetch-bake-${e.kind}.v', w) or {
+						print_error('cannot write bake wrapper: ${err.msg()}')
+						exit(1)
+					}
+				}
+			}
+			println('generated the fetch entry source: ${opt.out_src}')
+			if sources_have_runs(&cfg) {
+				run_v := output_source_v(&cfg, opt.source_confs, true) or {
+					print_error(err.msg())
+					exit(1)
+				}
+				write_out(opt.out_run_src, run_v) or {
+					print_error('cannot write ${opt.out_run_src}: ${err.msg()}')
+					exit(1)
+				}
+				println('generated the divifetch-run twin source: ${opt.out_run_src}')
+			}
+		} else {
+			write_out(opt.out_src, output_source(&cfg, opt.source_confs, opt.out_src, opt.out_bake, false)) or {
+				print_error('cannot write ${opt.out_src}: ${err.msg()}')
+				exit(1)
+			}
+			println('generated the fetch entry source: ${opt.out_src}')
+			if sources_have_runs(&cfg) {
+				write_out(opt.out_run_src, output_source(&cfg, opt.source_confs, opt.out_run_src, opt.out_bake, true)) or {
+					print_error('cannot write ${opt.out_run_src}: ${err.msg()}')
+					exit(1)
+				}
+				println('generated the divifetch-run twin source: ${opt.out_run_src}')
+			}
+			write_ext_projects(cfg) or {
+				print_error('cannot write the extern crate projects: ${err.msg()}')
+				exit(1)
+			}
+			if has_headgen {
+				write_out(opt.out_headgen, output_headgen(&cfg, opt.source_confs)) or {
+					print_error('cannot write ${opt.out_headgen}: ${err.msg()}')
+					exit(1)
+				}
+				println('generated the build-time bake program: ${opt.out_headgen}')
+			}
 		}
 	}
 	if opt.task_build {
-		conf := parse_build_conf(opt.build_conf) or {
+		conf := parse_build_conf(resolve_build_conf(opt.build_conf)) or {
 			print_error(err.msg())
 			exit(1)
 		}
-		write_out(opt.out_build, output_buildfile(conf, build_regen_args(opt), &cfg, opt.out_src, opt.out_bake, opt.out_run_src)) or {
+		buildfile := output_buildfile(conf, build_regen_args(opt), &cfg, opt.out_src, opt.out_bake, opt.out_run_src) or {
+			print_error(err.msg())
+			exit(1)
+		}
+		write_out(opt.out_build, buildfile) or {
 			print_error('cannot write ${opt.out_build}: ${err.msg()}')
 			exit(1)
 		}

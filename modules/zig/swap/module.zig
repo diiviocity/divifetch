@@ -18,6 +18,7 @@ fn memInfoValue(line: []const u8, key: []const u8) ?u64 {
 pub fn preset() []const u8 {
     if (@import("builtin").os.tag == .openbsd) return openbsdPreset();
     if (@import("builtin").os.tag == .freebsd) return freebsdPreset();
+    if (@import("builtin").os.tag == .macos) return macosPreset();
 
     const content = util.readWholeFile("/proc/meminfo", &file_buf) orelse return "?";
 
@@ -59,6 +60,22 @@ fn openbsdPreset() []const u8 {
 
     const used_mib: f64 = @as(f64, @floatFromInt(used_capped)) / (1024.0 * 1024.0);
     const total_mib: f64 = @as(f64, @floatFromInt(total)) / (1024.0 * 1024.0);
+
+    if (total_mib >= 1024.0)
+        return std.mem.print(&value_buf, "{d:.1} GiB / {d:.1} GiB", .{ used_mib / 1024.0, total_mib / 1024.0 }) catch "?";
+    return std.mem.print(&value_buf, "{d:.0} MiB / {d:.0} MiB", .{ used_mib, total_mib }) catch "?";
+}
+
+// macOS: vm.swapusage. dynamic_pager grows swapfiles on demand, so a
+// total of 0 (no swapfile yet) is the "no swap" answer.
+fn macosPreset() []const u8 {
+    const m = @import("../macos.zig");
+    const usage = m.swapUsage() orelse return "?";
+    if (usage.total == 0) return "?";
+    const used = @min(usage.used, usage.total);
+
+    const used_mib: f64 = @as(f64, @floatFromInt(used)) / (1024.0 * 1024.0);
+    const total_mib: f64 = @as(f64, @floatFromInt(usage.total)) / (1024.0 * 1024.0);
 
     if (total_mib >= 1024.0)
         return std.mem.print(&value_buf, "{d:.1} GiB / {d:.1} GiB", .{ used_mib / 1024.0, total_mib / 1024.0 }) catch "?";

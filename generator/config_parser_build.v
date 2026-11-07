@@ -9,6 +9,29 @@ import os
 
 // ─── build script ─────────────────────────────────────────────────────────
 
+const default_build_conf_name = 'build.conf'
+
+// the flags the zig backend takes when no conf speaks: BuildConf's own
+// default. the V backend's compile reads them too, so it must tell them
+// apart from a conf-spelled word — the zig optimizer cannot ride v's argv.
+const build_conf_default_zig_flags = '-Doptimize=ReleaseFast -fstrip'
+
+// resolve_build_conf finds a -b spelling across the tree: the plain name
+// rides where the call sits, and a bare name like `x86_64` answers the
+// named conf configs/ holds. the default name stays verbatim, so the
+// default flow reads its defaults when the file sits absent.
+fn resolve_build_conf(name string) string {
+	if name == default_build_conf_name || os.exists(name) {
+		return name
+	}
+	for spell in ['configs/${name}', 'configs/${name}.conf'] {
+		if os.exists(spell) {
+			return spell
+		}
+	}
+	return name
+}
+
 // BuildConf is the (build ...) form of build.conf: what the generated build
 // script is called, what compiles the zig, and where it installs. missing
 // file means every default below.
@@ -59,14 +82,20 @@ fn (mut conf BuildConf) read_form(path string, head_id reader.NodeId, arena &rea
 
 // parse_build_conf reads build.conf: file's forms are blip now — one
 // machine per read, the build builtin joining the prims, defines and
-// evaluated values folded in.
+// evaluated values folded in. the default name keeps the silent-defaults
+// convention (no file spelled): a NAMED conf — an arch anchor like
+// x86_64 — must exist, or its absence stops the generator instead of
+// quietly building the zig default shape.
 fn parse_build_conf(path string) !BuildConf {
 	mut conf := BuildConf{}
 	text := os.read_file(path) or {
 		if os.exists(path) {
 			return error('cannot read ${path}: ${err.msg()}')
 		}
-		return conf
+		if path == default_build_conf_name {
+			return conf
+		}
+		return error("build conf '${path}' is missing — write it (a (build ...) form, configs/<name>.conf for a bare -b name), or drop the -b flag for the default build.conf")
 	}
 	return collect_build(text, path) or {
 		return error(err.msg())

@@ -13,6 +13,10 @@ pub fn preset() []const u8 {
         const f = @import("../freebsd.zig");
         return f.unameField(.nodename, &value_buf) orelse "?";
     }
+    if (@import("builtin").os.tag == .macos) {
+        const m = @import("../macos.zig");
+        return m.unameField(.nodename, &value_buf) orelse "?";
+    }
     const uts = std.posix.uname();
     const buf = uts.nodename; // [64:0]u8, NUL sentinel guaranteed
     const n = std.mem.findScalar(u8, &buf, 0) orelse buf.len;

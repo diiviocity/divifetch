@@ -301,6 +301,12 @@ fn list_entry_kinds() []string {
 			if !os.exists('${lang_dir}/${name}/module.lip') {
 				continue
 			}
+			if name in blip_machine_builtins {
+				// the machine answers these before any prim: a kind
+				// binding would only print — the config spelling of one
+				// reads as the walker's 'no module called' instead.
+				continue
+			}
 			if name in kinds {
 				continue
 			}
@@ -378,6 +384,7 @@ fn collect_config(confs []string) !Config {
 		cfg.sources[fi].art_lines = build_art_lines(&cfg.sources[fi].props,
 			cfg.sources[fi].entries.len)!
 	}
+	backend_check(cfg, confs)!
 	return cfg
 }
 

@@ -18,7 +18,7 @@ loadavg: getloadavg(3)
 cpu: hw.model + hw.ncpu + dev.cpu.0.freq
 battery: hw.acpi.battery.life/state (+hw.acpi.acline)
 temp: dev.cpu.0.temperature (tenths of kelvin, or the "37.0C" string)
-os: "FreeBSD <release>" via libc's __xuname (the libc inlines uname(3))
+distro: "FreeBSD <release>" via libc's __xuname (the libc inlines uname(3))
 shell/terminal: the /proc walk rides kern.proc kinfo_proc (ki_pid,
 ki_ppid, ki_comm at their header-computed offsets, struct 1088 bytes)
 pid1: pid 1's ki_comm from the same kinfo read

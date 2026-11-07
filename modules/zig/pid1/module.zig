@@ -7,11 +7,15 @@ const util = @import("../util.zig");
 var value_buf: [32]u8 = undefined;
 
 pub fn preset() []const u8 {
-    if (@import("builtin").os.tag == .openbsd or @import("builtin").os.tag == .freebsd) {
-        const helper = if (@import("builtin").os.tag == .openbsd)
+    const tag = @import("builtin").os.tag;
+    if (tag == .openbsd or tag == .freebsd or tag == .macos) {
+        // macOS answers launchd from its own kinfo_proc layout.
+        const helper = if (tag == .openbsd)
             @import("../openbsd.zig")
+        else if (tag == .freebsd)
+            @import("../freebsd.zig")
         else
-            @import("../freebsd.zig");
+            @import("../macos.zig");
         const info = helper.procInfo(1) orelse return "?";
         if (info.comm.len > value_buf.len) return "?";
         @memcpy(value_buf[0..info.comm.len], info.comm);

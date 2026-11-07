@@ -1,6 +1,7 @@
-// generator.v — the emitters: run.zig and headgen.zig for the fetch, the
-// build.vsh that x.imp drives, the example config, and the helpers they
-// share (the print groups, the art column, entry calls).
+// generator.v — the emitters: run.zig and run.v for the fetch (the V
+// backend imports the modules/v/ presets as a real V program), headgen.zig
+// for the zig one's bakes, the build.vsh that x.imp drives assembling any
+// of the shapes, the example config, and the helpers they share.
 // the divifetch-zig generator.
 module main
 
@@ -174,13 +175,15 @@ fn object_outputs(cfg &Config) []string {
 
 // output_buildfile writes build.vsh, built on x.imp: a regen flow that
 // reruns the generator, a build flow that bakes what headgen says and the
-// V entries print, then compiles the fetch (feeding the c and cpp sources
-// to zig directly, linking everything else's objects), clean and the
-// install pair, and the auto run. everything lands under :build-dir; the
-// custom conf code rides the consts.
-fn output_buildfile(conf BuildConf, regen_args []string, cfg &Config, out_src string, out_bake string, out_run_src string) string {
+// V entries print, then compiles the fetch (a zig link, or the V backend's
+// v -prod of the whole source dir), clean and the install pair, and the
+// auto run. everything lands under :build-dir; the custom conf code rides
+// the consts.
+fn output_buildfile(conf BuildConf, regen_args []string, cfg &Config, out_src string, out_bake string, out_run_src string) !string {
 	out_src_dir := os.dir(out_src)
 	c_list := c_modules(cfg)
+	is_v := backend_of(cfg) == 'v'
+	v_mods := if is_v { cfg.v_module_dirs()! } else { []VModule{} }
 	mut ext_seen := map[string]bool{}
 	mut out := strings.new_builder(2048)
 	out.write_string('${conf.exec}\n\n')
@@ -225,6 +228,9 @@ fn output_buildfile(conf BuildConf, regen_args []string, cfg &Config, out_src st
 	}
 	// the pre-zig steps: rust's staticlibs, dmd's objects, and the template commands.
 	mut steps_cfg := compile_steps(cfg, conf.cc)
+
+	// a v backend carries no compiled-language modules, so those consts
+	// come out empty every time.
 	mut compile_literal := []string{}
 	mut shell_literal := []string{}
 	for step in steps_cfg {
@@ -308,6 +314,43 @@ fn esc(value string) string {
 	}
 	out.write_string('\n')
 	has_runs := sources_have_runs(cfg)
+	if is_v {
+		// the generated V program compiles from its whole source dir —
+		// run.v, bake.v and the module symlink dirs — so the flow holds
+		// the dir and the symlink pairs as consts beside the zig ones.
+		run_dir := os.dir(out_run_src)
+		out.write_string('\n')
+		out.write_string("// the generated V fetch program's whole source directory.\n")
+		out.write_string("const v_src_dir = '${v_escape(out_src_dir)}'\n")
+		if has_runs {
+			out.write_string("const v_run_dir = '${v_escape(run_dir)}'\n")
+		}
+		mut pair_literal := []string{}
+		for m in v_mods {
+			pair_literal << "['${v_escape(m.name)}', '${v_escape(m.dir)}']"
+		}
+		if pair_literal.len > 0 {
+			out.write_string('const v_modules = [${pair_literal.join(', ')}]\n')
+		}
+		out.write_string('\n')
+		out.write_string('// v_alias points one module symlink beside the generated source at\n')
+		out.write_string('// its module tree: a real directory breaks the build loudly, and a\n')
+		out.write_string('// symlink of another age re-points fresh — the link rides an absolute\n')
+		out.write_string('// path, like the modules alias the zig build grew.\n')
+		out.write_string('fn v_alias(mod_dir string, name string, dir string) ! {\n')
+		out.write_string('	alias := os.join_path_single(mod_dir, name)\n')
+		out.write_string('	if os.is_dir(alias) && !os.is_link(alias) {\n')
+		out.write_string("		return error('the module ' + alias + ' is a real directory; the fetch needs it as a symlink into the repo tree')\n")
+		out.write_string('	}\n')
+		out.write_string('	if os.is_link(alias) {\n')
+		out.write_string('		os.rm(alias)!\n')
+		out.write_string('	}\n')
+		out.write_string('	if os.is_dir(alias) {\n')
+		out.write_string('		return\n')
+		out.write_string('	}\n')
+		out.write_string('	os.symlink(os.abs_path(dir), alias)!\n')
+		out.write_string('}\n')
+	}
 	if has_runs {
 		// the divifetch-run twin: the regen flow writes its source, the
 		// build compiles it beside the fetch, the run flow drives it.
@@ -363,19 +406,30 @@ fn esc(value string) string {
 	out.write_string('\tflow: fn (self imp.Flow) ! {\n')
 	out.write_string("\t\tos.mkdir_all('${v_escape(out_src_dir)}')!\n")
 	out.write_string('\t\tos.mkdir_all(build_dir)!\n')
-	out.write_string('\t\t// the generated sources reach the modules through a tree symlink\n')
-	out.write_string("\t\tmod_alias := os.join_path_single('${out_src_dir}', 'modules')\n")
-	out.write_string('\t\tif os.is_dir(mod_alias) && !os.is_link(mod_alias) {\n')
-	out.write_string("\t\t\treturn error('the modules ' + mod_alias + ' is a real directory; the fetch needs it as a symlink into the repo tree')\n")
-	out.write_string('\t\t}\n')
-	out.write_string('\t\t// a symlink of another age — the workspace having moved — re-points\n')
-	out.write_string('\t\t// fresh: the alias rides an absolute path.\n')
-	out.write_string('\t\tif os.is_link(mod_alias) {\n')
-	out.write_string('\t\t\tos.rm(mod_alias)!\n')
-	out.write_string('\t\t}\n')
-	out.write_string('\t\tif !os.exists(mod_alias) {\n')
-	out.write_string("\t\t\tos.symlink(os.abs_path('modules'), mod_alias)!\n")
-	out.write_string('\t\t}\n')
+	if is_v {
+		out.write_string('\t\t// the generated V source reaches its modules through one\n')
+		out.write_string('\t\t// symlink per module — the imports beside the sources answer.\n')
+		out.write_string('\t\tfor pair in v_modules {\n')
+		out.write_string('\t\t\tv_alias(v_src_dir, pair[0], pair[1])!\n')
+		if has_runs {
+			out.write_string('\t\t\tv_alias(v_run_dir, pair[0], pair[1])!\n')
+		}
+		out.write_string('\t\t}\n')
+	} else {
+		out.write_string('\t\t// the generated sources reach the modules through a tree symlink\n')
+		out.write_string("\t\tmod_alias := os.join_path_single('${out_src_dir}', 'modules')\n")
+		out.write_string('\t\tif os.is_dir(mod_alias) && !os.is_link(mod_alias) {\n')
+		out.write_string("\t\t\treturn error('the modules ' + mod_alias + ' is a real directory; the fetch needs it as a symlink into the repo tree')\n")
+		out.write_string('\t\t}\n')
+		out.write_string('\t\t// a symlink of another age — the workspace having moved — re-points\n')
+		out.write_string('\t\t// fresh: the alias rides an absolute path.\n')
+		out.write_string('\t\tif os.is_link(mod_alias) {\n')
+		out.write_string('\t\t\tos.rm(mod_alias)!\n')
+		out.write_string('\t\t}\n')
+		out.write_string('\t\tif !os.exists(mod_alias) {\n')
+		out.write_string("\t\t\tos.symlink(os.abs_path('modules'), mod_alias)!\n")
+		out.write_string('\t\t}\n')
+	}
 	out.write_string('\t\t// the compiled-language modules build their objects first: the\n')
 	out.write_string('\t\t// rust staticlibs, the dmd objects, and any template command the\n')
 	out.write_string('\t\t// lips carried.\n')
@@ -409,25 +463,32 @@ fn esc(value string) string {
 	out.write_string('\t\t}\n')
 	out.write_string('\t\t// build-time entries bake here once: headgen runs the zig, c, cpp\n')
 	out.write_string('\t\t// and rust ones, the v_bakes steps run the V ones, and their\n')
-	out.write_string('\t\t// output lands in the bake file run.zig imports.\n')
+	out.write_string('\t\t// output lands in the bake file the fetch imports.\n')
 	out.write_string("\t\tmut bake_out := ''\n")
-	out.write_string('\t\tif os.exists(headgen_file) {\n')
-	out.write_string("\t\t\tmut argv := [zig, 'build-exe']\n")
-	out.write_string("\t\t\targv << zig_flags.split(' ')\n")
-	out.write_string('\t\t\targv << [headgen_file]\n')
-	out.write_string('\t\t\targv << c_sources\n')
-	out.write_string('\t\t\targv << objects\n')
-	out.write_string('\t\t\targv << extra_link\n')
-	out.write_string("\t\t\targv << ['-femit-bin=' + headgen_exe]\n")
-	out.write_string('\t\t\timp.system_args(argv)!\n')
-	out.write_string('\t\t\tbake := os.exec([headgen_exe])\n')
-	out.write_string('\t\t\tif bake.exit_code != 0 {\n')
-	out.write_string('\t\t\t\tprint(bake.output)\n')
-	out.write_string("\t\t\t\treturn error('headgen exited with ' + bake.exit_code.str())\n")
-	out.write_string('\t\t\t}\n')
-	out.write_string('\t\t\tbake_out += bake.output\n')
-	out.write_string('\t\t}\n')
+	if is_v {
+		out.write_string('\t\t// the V bake file is its own module file: the consts sit in the\n')
+		out.write_string('\t\t// same directory the sources compile from.\n')
+		out.write_string("\t\tbake_out = '// bake.v — generated by build.vsh: one baked value per build-time entry.\nmodule main\n'\n")
+	} else {
+		out.write_string('\t\tif os.exists(headgen_file) {\n')
+		out.write_string("\t\t\tmut argv := [zig, 'build-exe']\n")
+		out.write_string("\t\t\targv << zig_flags.split(' ')\n")
+		out.write_string('\t\t\targv << [headgen_file]\n')
+		out.write_string('\t\t\targv << c_sources\n')
+		out.write_string('\t\t\targv << objects\n')
+		out.write_string('\t\t\targv << extra_link\n')
+		out.write_string("\t\t\targv << ['-femit-bin=' + headgen_exe]\n")
+		out.write_string('\t\t\timp.system_args(argv)!\n')
+		out.write_string('\t\t\tbake := os.exec([headgen_exe])\n')
+		out.write_string('\t\t\tif bake.exit_code != 0 {\n')
+		out.write_string('\t\t\t\tprint(bake.output)\n')
+		out.write_string("\t\t\t\treturn error('headgen exited with ' + bake.exit_code.str())\n")
+		out.write_string('\t\t\t}\n')
+		out.write_string('\t\t\tbake_out = bake.output\n')
+		out.write_string('		}\n')
+	}
 	if steps.len > 0 {
+		out.write_string('\t\tos.setenv(\'VMODULES\', os.abs_path(\'modules/v\'), true)\n')
 		out.write_string('\t\tfor i, step in v_bakes {\n')
 		out.write_string('\t\t\tbaked := os.exec(step)\n')
 		out.write_string('\t\t\tif baked.exit_code != 0 {\n')
@@ -438,24 +499,71 @@ fn esc(value string) string {
 		out.write_string('\t\t}\n')
 	}
 	out.write_string("\t\tos.write_file('" + v_escape(out_bake) + "', bake_out)!\n")
-	out.write_string("\t\tmut argv := [zig, 'build-exe']\n")
-	out.write_string("\t\targv << zig_flags.split(' ')\n")
-	out.write_string("\t\targv << ['${v_escape(out_src)}']\n")
-	out.write_string('\t\targv << c_sources\n')
-	out.write_string('\t\targv << objects\n')
-	out.write_string('\t\targv << extra_link\n')
-	out.write_string("\t\targv << ['-femit-bin=' + target_exe]\n")
-	out.write_string('\t\timp.system_args(argv)!\n')
+	if is_v {
+		if has_runs {
+			run_bake := os.join_path_single(os.dir(out_run_src), 'bake.v')
+			out.write_string('\t\t// the twin dir shares the bake: same constants, same module.\n')
+			out.write_string("\t\tos.write_file('${v_escape(run_bake)}', bake_out)!\n")
+		}
+		out.write_string('\t\t// the fetch compiles v-style: the whole source dir answers — its\n')
+		out.write_string('\t\t// run.v entry, its bake const file, its module symlink dirs. the\n')
+		out.write_string("\t\t// build conf's :flags own the compile words: the default\n")
+		out.write_string("\t\t// flags are the zig backend's, so a bare v build spells -prod,\n")
+		out.write_string('\t\t// and an all-native one spell -b x64 -gc none (see\n')
+		out.write_string('\t\t// configs/x86_64.conf). the flags run first, before the -o pair.\n')
+		if conf.flags == build_conf_default_zig_flags || conf.flags == '' {
+			out.write_string("\t\timp.system_args(['v', '-new-compiler', '-prod', '-freestanding', '-gc', 'none', '-o', target_exe, v_src_dir])!\n")
+		} else {
+			mut flag_literal := []string{}
+			for flag in conf.flags.split(' ') {
+				flag_literal << "'${v_escape(flag)}'"
+			}
+			out.write_string("\t\tmut argv := ['v'")
+			for flag in conf.flags.split(' ') {
+				out.write_string(", '${v_escape(flag)}'")
+			}
+			out.write_string(']\n')
+			out.write_string("\t\targv << ['-o', target_exe]\n")
+			out.write_string('\t\targv << [v_src_dir]\n')
+			out.write_string('\t\timp.system_args(argv)!\n')
+		}
+	} else {
+		out.write_string("\t\tmut argv := [zig, 'build-exe']\n")
+		out.write_string("\t\targv << zig_flags.split(' ')\n")
+		out.write_string("\t\targv << ['${v_escape(out_src)}']\n")
+		out.write_string('\t\targv << c_sources\n')
+		out.write_string('\t\targv << objects\n')
+		out.write_string('\t\targv << extra_link\n')
+		out.write_string("\t\targv << ['-femit-bin=' + target_exe]\n")
+		out.write_string('\t\timp.system_args(argv)!\n')
+	}
 	if has_runs {
-		out.write_string('\t\t// the twin links the same tree the fetch did: same flags, same objects, its own entry source and bin.\n')
-		out.write_string("\t\tmut run_argv := [zig, 'build-exe']\n")
-		out.write_string("\t\trun_argv << zig_flags.split(' ')\n")
-		out.write_string('\t\trun_argv << [run_src]\n')
-		out.write_string('\t\trun_argv << c_sources\n')
-		out.write_string('\t\trun_argv << objects\n')
-		out.write_string('\t\trun_argv << extra_link\n')
-		out.write_string("\t\trun_argv << ['-femit-bin=' + run_target_exe]\n")
-		out.write_string('\t\timp.system_args(run_argv)!\n')
+		if is_v {
+			out.write_string('\t\t// the twin compiles from its own dir: one main per program, the\n')
+			out.write_string('\t\t// same modules symlinked beside its source, the same conf flags.\n')
+			if conf.flags == build_conf_default_zig_flags || conf.flags == '' {
+				out.write_string("\t\timp.system_args(['v', '-new-compiler', '-prod', '-freestanding', '-gc', 'none', '-o', run_target_exe, v_run_dir])!\n")
+			} else {
+				out.write_string("\t\tmut run_argv := ['v'")
+				for flag in conf.flags.split(' ') {
+					out.write_string(", '${v_escape(flag)}'")
+				}
+				out.write_string(']\n')
+				out.write_string("\t\trun_argv << ['-o', run_target_exe]\n")
+				out.write_string('\t\trun_argv << [v_run_dir]\n')
+				out.write_string('\t\timp.system_args(run_argv)!\n')
+			}
+		} else {
+			out.write_string('\t\t// the twin links the same tree the fetch did: same flags, same objects, its own entry source and bin.\n')
+			out.write_string("\t\tmut run_argv := [zig, 'build-exe']\n")
+			out.write_string("\t\trun_argv << zig_flags.split(' ')\n")
+			out.write_string('\t\trun_argv << [run_src]\n')
+			out.write_string('\t\trun_argv << c_sources\n')
+			out.write_string('\t\trun_argv << objects\n')
+			out.write_string('\t\trun_argv << extra_link\n')
+			out.write_string("\t\trun_argv << ['-femit-bin=' + run_target_exe]\n")
+			out.write_string('\t\timp.system_args(run_argv)!\n')
+		}
 	}
 	out.write_string('\t}\n')
 	out.write_string(')\n\n')
@@ -482,7 +590,9 @@ fn esc(value string) string {
 	out.write_string('\tgives: [install_path]\n')
 	out.write_string('\tflow: fn (self imp.Flow) ! {\n')
 	out.write_string('\t\tos.mkdir_all(dest_dir)!\n')
-	out.write_string("\t\timp.system_args(['install', '-Dm755', target_exe, install_path])!\n")
+	// dest_dir exists by now, so no GNU -D: the BSD install(1) macOS
+	// ships has none.
+	out.write_string("\t\timp.system_args(['install', '-m755', target_exe, install_path])!\n")
 	out.write_string('\t}\n')
 	out.write_string(')\n\n')
 	out.write_string('ctx.add_flow(\n')
@@ -748,7 +858,11 @@ fn v_bake_steps(cfg &Config) []VBakeStep {
 			if e.static_ || e.bt_id < 0 { continue }
 			lip := cfg.modules[e.kind]
 			if lip.language != 'v' { continue }
-			mut step := ['v', 'run', '${lip.dir}/${lip.source}']
+			mut bake_src := '${lip.dir}/${lip.source}'
+			if lip.fname != '' {
+				bake_src = '.tmp/vfetch-bake-${e.kind}.v'
+			}
+			mut step := ['v', 'run', bake_src]
 			if e.arg != '' {
 				step << e.arg
 			}
@@ -1131,6 +1245,483 @@ fn sources_have_runs(cfg &Config) bool {
 	return false
 }
 
+// ─── the V backend ─────────────────────────────────────────────────────────
+
+// v_str_escape escapes one string for inside a V string literal: backslash
+// and quote first, then the named escapes, control bytes as \xHH, and the
+// dollar last — `$` opens an interpolation in V, and `${'$'}` is the only
+// literal dollar that reads through. the nul warning rides the caller.
+fn v_str_escape(s string) string {
+	mut out := s.replace('\\', '\\\\').replace("'", "\\'")
+		.replace('\n', '\\n').replace('\r', '\\r')
+		.replace('\t', '\\t').replace(nul, '\\0')
+	if out.contains('$') {
+		out = out.replace('$', '\$')
+	}
+	if out.contains(esc) {
+		// ANSI rides the generated sources spelled out — raw ESC bytes in
+		// a V literal pass, but spelled \x1b keeps the source printable.
+		out = out.replace(esc, '\\x1b')
+	}
+	return out
+}
+
+// entry_call_v builds one V preset call: <kind>.<fn>(arg?), pointers out —
+// a V module reads env and files itself, so no runtime context rides the
+// signature, and the entry's :args ride a list when the preset spells one.
+fn entry_call_v(cfg &Config, e &Entry) string {
+	lip := cfg.modules[e.kind]
+	mut args := []string{}
+	if lip.arg_is_list {
+		mut one := []string{}
+		if e.args.len > 0 {
+			for a in e.args {
+				one << "'${v_str_escape(a)}'"
+			}
+		} else if e.arg != '' {
+			one << "'${v_str_escape(e.arg)}'"
+		}
+		if one.len > 0 {
+			args << '[${one.join(', ')}]'
+		} else {
+			args << '[]'
+		}
+	} else if lip.arg != '' {
+		args << "'${v_str_escape(e.arg)}'"
+	}
+	return '${e.kind}.${lip.fname}(${args.join(', ')})'
+}
+
+// backend_of answers the language the fetch program is generated in: 'v'
+// when a V entry rides any dynamic line (the generated program imports the
+// modules/v/ presets as real V modules), 'zig' otherwise. backend_check
+// holds the mixes off, so an answer never has to hedge.
+fn backend_of(cfg &Config) string {
+	for source in cfg.sources {
+		for e in source.entries {
+			if e.static_ {
+				continue
+			}
+			if cfg.modules[e.kind].language == 'v' {
+				return 'v'
+			}
+		}
+	}
+	return 'zig'
+}
+
+// import_names_v lists the runtime V kinds in first-reference order, the
+// way import_names does for zig: the generated run.v imports each by name,
+// and the build script symlinks each module dir beside the source.
+fn import_names_v(cfg &Config) []string {
+	mut names := []string{}
+	mut seen := map[string]bool{}
+	for source in cfg.sources {
+		for e in source.entries {
+			if e.static_ || e.build_time || seen[e.kind] { continue }
+			if cfg.modules[e.kind].language != 'v' { continue }
+			seen[e.kind] = true
+			names << e.kind
+		}
+	}
+	return names
+}
+
+// VModule is one module the generated V program imports: its name and the
+// tree dir the build script symlinks beside the source.
+struct VModule {
+	name string
+	dir  string
+}
+
+// v_module_dirs lists the V modules the generated program imports: the
+// kind of every runtime V entry first, then whatever those sources import
+// themselves — a shared helper module rides beside the entry kinds. every
+// non-stdlib import must name a modules/v/<name> dir, or the answer names
+// the hole: a helper without a module home stops at generation.
+const v_stdlib_imports = ['os', 'strconv', 'strings', 'rand', 'time', 'math', 'term', 'io', 'unicode',
+	'arrays', 'datatypes', 'log', 'readline', 'runtime', 'semver', 'toml', 'uuid']
+
+fn (cfg &Config) v_module_dirs() ![]VModule {
+	mut mods := []VModule{}
+	mut seen := map[string]bool{}
+	for kind in import_names_v(cfg) {
+		mods << VModule{
+			name: kind
+			dir:  cfg.modules[kind].dir
+		}
+		seen[kind] = true
+	}
+	mut pending := mods.clone()
+	for pending.len > 0 {
+		ref := pending[0]
+		pending = pending[1..]
+		// every .v file the module dir carries, not only its entry source:
+		// a platform file (battery_macos.v) holds the imports its target
+		// alone needs, and a helper module has no entry source at all
+		mut text := ''
+		mut files := os.ls(ref.dir) or { []string{} }
+		files.sort()
+		for file in files {
+			if file.ends_with('.v') && !file.ends_with('_test.v') {
+				text += (os.read_file('${ref.dir}/${file}') or { '' }) + '\n'
+			}
+		}
+		for line in text.split_into_lines() {
+			trimmed := line.trim_space()
+			if !trimmed.starts_with('import ') {
+				continue
+			}
+			name := trimmed[7..].trim_space()
+			if name == '' || seen[name] || name in v_stdlib_imports {
+				continue
+			}
+			dir := 'modules/v/${name}'
+			if !os.is_dir(dir) {
+				return error('${ref.dir} imports ${name} — no modules/v/${name} module sits behind it, so the generated fetch cannot reach it')
+			}
+			seen[name] = true
+			mut vm := VModule{
+				name: name
+				dir:  dir
+			}
+			mods << vm
+			pending << vm
+		}
+	}
+	return mods
+}
+
+// the fetch compiles as one language: a V preset cannot link beside a zig
+// or shim'd C one (a runtime mix), and headgen prints zig bake constants,
+// which a V program cannot import (a compiled-language build-time entry
+// under an all-V fetch). runtime V entries plus build-time zig ones ride
+// the zig backend's v_bakes fine — that mix keeps its home.
+fn backend_check(cfg &Config, confs []string) ! {
+	path := confs.join(', ')
+	mut rt_v := false
+	mut rt_zig := false
+	mut bt_zig := false
+	mut has_v := false
+	for source in cfg.sources {
+		for e in source.entries {
+			if e.static_ {
+				continue
+			}
+			language := cfg.modules[e.kind].language
+			if language == 'v' {
+				rt_v = rt_v || !e.build_time
+				has_v = true
+			} else {
+				rt_zig = rt_zig || !e.build_time
+				bt_zig = bt_zig || e.build_time
+			}
+		}
+	}
+	if rt_v && rt_zig {
+		return error('${path}: the fetch compiles as one language — runtime V entries reach the generated V program, runtime zig and compiled-language ones reach the zig one; make every runtime entry a V module, or bake the V ones (:build-time yes)')
+	}
+	if has_v && bt_zig {
+		return error('${path}: build-time zig and compiled-language entries bake through headgen, a zig program — the fetch compiles V and imports bake.v; make the V ones all the V there is, or bake the others as V scripts')
+	}
+}
+
+// v_entry_pieces appends one entry's V line parts: the art column first,
+// then the key prefixed and suffixed as configured, and either the baked
+// value or the preset call, plus the suffix. pieces concatenate, so a
+// call and its art front share one println. the nul guard runs — the
+// mispelled-ANSI warning names the field, the entry.
+fn (cfg &Config) v_entry_pieces(path string, art string, e Entry, call string, mut pieces []string) {
+	if art != '' {
+		cfg.nul_check(path, 'art', art)
+		pieces << "'${v_str_escape(art)}'"
+	}
+	if !e.no_key {
+		cfg.nul_check(path, 'key-prefix', e.kp)
+		if e.kp != '' {
+			pieces << "'${v_str_escape(e.kp)}'"
+		}
+		cfg.nul_check(path, 'key', e.key)
+		pieces << "'${v_str_escape(e.key)}'"
+		cfg.nul_check(path, 'key-suffix', e.ks)
+		if e.ks != '' {
+			pieces << "'${v_str_escape(e.ks)}'"
+		}
+	}
+	cfg.nul_check(path, 'value-prefix', e.vp)
+	if e.vp != '' {
+		pieces << "'${v_str_escape(e.vp)}'"
+	}
+	if e.static_ {
+		cfg.nul_check(path, 'value', e.value)
+		pieces << "'${v_str_escape(e.value)}'"
+	} else {
+		pieces << call
+	}
+	cfg.nul_check(path, 'value-suffix', e.vs)
+	if e.vs != '' {
+		pieces << "'${v_str_escape(e.vs)}'"
+	}
+	pieces << "'\\n'"
+}
+
+// emit_group_v writes one print per batch: the pieces concatenate, the
+// call sitting exactly where the batch reached it, the same shape the zig
+// emitter batches its printfs. print, not println — the batch already
+// ends its line with the '\n' piece, and println would pair it with one
+// of its own.
+fn emit_group_v(out &strings.Builder, pieces []string, covered []Entry, path string, trailing_art bool) {
+	if pieces.len == 0 {
+		return
+	}
+	out.write_string('    // ${group_note(covered, path, trailing_art)}\n')
+	// combine adjacent string literals at generation time, so the
+	// fetch never concatenates them at runtime.
+	mut merged := []string{}
+	for _, piece in pieces {
+		if piece == "''" {
+			continue
+		}
+		if merged.len > 0 && piece.starts_with("'") && piece.ends_with("'") {
+			last := merged[merged.len - 1]
+			if last.starts_with("'") && last.ends_with("'") {
+				merged[merged.len - 1] = last[..last.len - 1] + piece[1..]
+				continue
+			}
+		}
+		merged << piece
+	}
+	for _, piece in merged {
+		out.write_string('    sb.write_string(${piece})\n')
+	}
+}
+
+// output_source_v writes run.v, the V twin of run.zig: one import per v
+// module in the closure, run_<i> fns whose println batches carry the art
+// column in front of every entry the way the C generator batched them, a
+// random pick when several config files join in, and the twin's (run ...)
+// chain after the flush. the module dirs ride the build script's symlinks.
+fn output_source_v(cfg &Config, confs []string, twin bool) !string {
+	path := confs.join(', ')
+	mut out := strings.new_builder(4096)
+	if twin {
+		out.write_string('// run-run.v — the divifetch-run twin. generated by the generator.\n')
+		out.write_string('// it prints the fetch lines, then runs the (run ...) binaries\n')
+		out.write_string('// the config chains after them. regenerate with: v run generator\n')
+	} else {
+		out.write_string('// run.v — the divifetch-v fetch entry. generated by the generator.\n')
+		out.write_string('// edit config.lip and the module.lips instead; regenerate with: v run generator\n')
+	}
+	out.write_string('// source configs: ${path}\n')
+	out.write_string('\n')
+	out.write_string('module main\n')
+	out.write_string('\n')
+	// os rides only when this program runs children: the :execute, and
+	// the twin's (run ...) chain, are the import's only users. the plain
+	// fetch never spawns — its runs happen in the twin.
+	mut needs_os := false
+	for source in cfg.sources {
+		if source.execute != '' || (twin && source.runs.len > 0) {
+			needs_os = true
+		}
+	}
+	if needs_os {
+		out.write_string('import os\n')
+	}
+	if cfg.sources.len > 1 {
+		out.write_string('import rand\n')
+	}
+	// the entry kinds only: a helper module (darwin) rides in the module
+	// list for the build's symlinks, but run.v itself never names it
+	for name in import_names_v(cfg) {
+		out.write_string('import ${name}\n')
+	}
+	out.write_string('import strings\n')
+	out.write_string('\n')
+	// one dispatch: the chosen source's lines, then the twin's runs or the
+	// picked file's :execute. the chosen var keeps the guards uniform.
+	if cfg.sources.len == 1 {
+		out.write_string('pub fn main() {\n')
+		out.write_string('    run_0()\n')
+		if twin {
+			cfg.v_run_spawns(out, 0, false)
+		}
+		cfg.v_source_execute(out, 0)
+		out.write_string('}\n')
+	} else {
+		out.write_string('pub fn main() {\n')
+		out.write_string('    mut chosen := 0\n')
+		out.write_string('    chosen = rand.intn(${cfg.sources.len}) or { 0 }\n')
+		out.write_string('    match chosen {\n')
+		for si in 0 .. cfg.sources.len {
+			out.write_string('        ${si} { run_${si}() }\n')
+		}
+		out.write_string('        else {}\n')
+		out.write_string('    }\n')
+		for si in 0 .. cfg.sources.len {
+			if twin {
+				cfg.v_run_spawns(out, si, true)
+			}
+			cfg.v_source_execute(out, si)
+		}
+		out.write_string('}\n')
+	}
+	// the source fns: one per config, carrying the chosen file's art and
+	// prefixes, with the print groups batched the C way.
+	for si, source in cfg.sources {
+		src_path := confs[si]
+		out.write_string('\n')
+		out.write_string('// run_${si} — the entries of ${src_path}.\n')
+		out.write_string('fn run_${si}() {\n')
+		out.write_string('    mut sb := strings.new_builder(4096)\n')
+		mut pieces := []string{}
+		mut covered := []Entry{}
+		for i, e in source.entries {
+			mut art_piece := ''
+			if source.art_lines.len > i {
+				art_piece = source.art_lines[i]
+			}
+			if e.new_print && covered.len > 0 {
+				emit_group_v(out, pieces, covered, src_path, false)
+				pieces = []
+				covered = []
+			}
+			if e.static_ {
+				cfg.v_entry_pieces(src_path, art_piece, e, '', mut pieces)
+			} else {
+				if covered.len > 0 {
+					emit_group_v(out, pieces, covered, src_path, false)
+					pieces = []
+					covered = []
+				}
+				mut call := ''
+				if e.bt_id >= 0 {
+					call = 'bt_${e.bt_id}'
+				} else {
+					call = entry_call_v(cfg, e)
+				}
+				cfg.v_entry_pieces(src_path, art_piece, e, call, mut pieces)
+			}
+			covered << e
+		}
+		// trailing art rides one piece per line, each ending its own
+		// newline — the join glues literals, the batch's own '\n' piece
+		// answering only the last line, so the tail spells its own.
+		for i in source.entries.len .. source.art_lines.len {
+			pieces << "'${v_str_escape(source.art_lines[i])}'"
+			pieces << "'\\n'"
+		}
+		emit_group_v(out, pieces, covered, src_path, source.art_lines.len > source.entries.len)
+		out.write_string('    print(sb.str())\n')
+		out.write_string('}\n')
+	}
+	return out.str()
+}
+
+// v_source_execute writes one source's :execute: execvp replaces the whole
+// process, the C generator's execl after its prints.
+fn (cfg &Config) v_source_execute(out &strings.Builder, si int) {
+	source := cfg.sources[si]
+	if source.execute == '' {
+		return
+	}
+	if cfg.sources.len > 1 {
+		out.write_string('    if chosen == ${si} {\n')
+	}
+	out.write_string("        os.execvp('/bin/sh', ['/bin/sh', '-c', '${v_str_escape(source.execute)}']) or { exit(127) }\n")
+	if cfg.sources.len > 1 {
+		out.write_string('    }\n')
+	}
+}
+
+// v_run_spawns writes one source's (run ...) chain: each binary answers
+// from its own argv through os.new_process, inherited stdio and all, with
+// the next one waiting the previous out. a failing child stops the twin —
+// the zig twin's error.TwinChildFailed by node — after every line printed.
+fn (cfg &Config) v_run_spawns(out &strings.Builder, si int, guarded bool) {
+	source := cfg.sources[si]
+	if source.runs.len == 0 {
+		return
+	}
+	if guarded {
+		out.write_string('    if chosen == ${si} {\n')
+	}
+	for r in source.runs {
+		out.write_string('        // (run ...) from config.lip:${r.line}: ${v_str_escape(r.bin)}\n')
+		out.write_string('        {\n')
+		out.write_string('            $if freestanding {\n')
+		out.write_string('                pid := os.fork()\n')
+		out.write_string('                if pid < 0 {\n')
+		out.write_string('                    exit(127)\n')
+		out.write_string('                }\n')
+		out.write_string('                if pid == 0 {\n')
+		out.write_string('                    mut cands := []string{}\n')
+		out.write_string('                    if "${v_str_escape(r.bin)}".contains("/") {\n')
+		out.write_string('                        cands << "${v_str_escape(r.bin)}"\n')
+		out.write_string('                    } else {\n')
+		out.write_string("                        for d in ['/usr/local/bin', '/usr/bin', '/bin', '/usr/sbin', '/sbin'] {\n")
+		out.write_string('                            cands << d + "/" + "${v_str_escape(r.bin)}"\n')
+		out.write_string('                        }\n')
+		out.write_string('                    }\n')
+		out.write_string('                    mut envp := []string{}\n')
+		out.write_string("                    if env_data := os.read_file('/proc/self/environ') {\n")
+		out.write_string("                        for part in env_data.split('\\x00') {\n")
+		out.write_string('                            if part.len > 0 { envp << part }\n')
+		out.write_string('                        }\n')
+		out.write_string('                    }\n')
+		out.write_string('                    // ensure interactive shells have a terminal type and PATH\n')
+		out.write_string('                    mut has_term := false\n')
+		out.write_string('                    mut has_path := false\n')
+		out.write_string('                    for e in envp {\n')
+		out.write_string("                        if e.starts_with('TERM=') { has_term = true }\n")
+		out.write_string("                        if e.starts_with('PATH=') { has_path = true }\n")
+		out.write_string('                    }\n')
+		out.write_string("                    if !has_term { envp << 'TERM=xterm-256color' }\n")
+		out.write_string("                    if !has_path { envp << 'PATH=/usr/local/bin:/usr/bin:/bin' }\n")
+		out.write_string('                    for c in cands {\n')
+		out.write_string('                        mut argv := []string{}\n')
+				for arg in r.args {
+			out.write_string('                        argv << "${v_str_escape(arg)}"\n')
+		}
+		out.write_string('                        os.execve(c, argv, envp) or { continue }\n')
+		out.write_string('                    }\n')
+		out.write_string('                    exit(127)\n')
+		out.write_string('                }\n')
+		out.write_string('                mut status := 0\n')
+		out.write_string('                for {\n')
+		out.write_string('                    r := os.wait4(pid, &status, 0, voidptr(0))\n')
+		out.write_string('                    if r == pid || r < 0 {\n')
+		out.write_string('                        break\n')
+		out.write_string('                    }\n')
+		out.write_string('                }\n')
+		out.write_string('                code := (status >> 8) & 0xff\n')
+		out.write_string('                if code != 0 {\n')
+		out.write_string('                    exit(code)\n')
+		out.write_string('                }\n')
+		out.write_string('            } $else {\n')
+		out.write_string("                mut child := os.new_process('${v_str_escape(r.bin)}')\n")
+		if r.args.len > 0 {
+			out.write_string('                child.set_args([')
+			mut one := []string{}
+			for a in r.args {
+				one << "'${v_str_escape(a)}'"
+			}
+			out.write_string(one.join(', '))
+			out.write_string('])\n')
+		}
+		out.write_string('                child.run()\n')
+		out.write_string('                child.wait()\n')
+		out.write_string('                if child.code != 0 {\n')
+		out.write_string('                    exit(child.code)\n')
+		out.write_string('                }\n')
+		out.write_string('            }\n')
+		out.write_string('        }\n')
+	}
+	if guarded {
+		out.write_string('    }\n')
+	}
+}
+
 // ─── example config ───────────────────────────────────────────────────────
 
 // output_example_config is the --genconf template: the same fields as the C
@@ -1146,6 +1737,11 @@ fn output_example_config() string {
 ; dirs the fetch reads, in lookup order; the whole tree goes by default.
 ; with several
 ; -s files the fetch picks one at random on each run.
+;
+; a config with only V modules rides the V backend: the fetch program
+; generates as .tmp/vfetch/run.v instead of .tmp/run.zig, one main, the
+; modules/v/ presets compiled into it. spell :languages [:v] and the
+; runtime entries, and the build script answers with v -prod.
 ;
 ; strings know the blip escapes (n, t, r, 0, the backslash and the quote)
 ; plus two the generator adds for ANSI: \e is the escape byte and \xHH one
@@ -1172,7 +1768,7 @@ fn output_example_config() string {
 
 (user :key "")
 (plain :value-prefix dark :value "---------")
-(os :key "OS")
+(distro :key "OS")
 (host)
 (kernel)
 (pid1 :key "Supervisor")
@@ -1184,7 +1780,7 @@ fn output_example_config() string {
 (cpu)
 (gpu)
 (memory)
-(display)
+(monitor :key "Display")
 (mount_p "/")
 (battery)
 

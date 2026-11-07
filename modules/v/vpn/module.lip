@@ -1,0 +1,4 @@
+;; vpn module — tunnel interface presence, the first tun*/wg*/tap*/ppp* answering "up (<name>)".
+(module
+	:language "v"
+	:fn "preset")

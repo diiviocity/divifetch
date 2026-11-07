@@ -45,6 +45,11 @@ const pretty_map = [_]struct { proc: []const u8, name: []const u8 }{
     .{ .proc = "tilix", .name = "Tilix" },
     .{ .proc = "xterm", .name = "XTerm" },
     .{ .proc = "ratty", .name = "Ratty" },
+    // macOS: Terminal.app's process is plain "Terminal"; iTerm2 runs its
+    // shells under an "iTermServer-<version>" helper.
+    .{ .proc = "Terminal", .name = "Apple Terminal" },
+    .{ .proc = "iTermServer", .name = "iTerm2" },
+    .{ .proc = "iTerm2", .name = "iTerm2" },
 };
 
 /// What the identity pass found: `name` is the raw process name (comm),
@@ -73,6 +78,9 @@ fn fromTermProgram(environ: *const std.process.Environ.Map) ?[]const u8 {
         .{ .needle = "kitty", .name = "kitty" },
         .{ .needle = "alacritty", .name = "alacritty" },
         .{ .needle = "konsole", .name = "konsole" },
+        // the macOS apps spell their own: "Apple_Terminal", "iTerm.app"
+        .{ .needle = "apple_terminal", .name = "Terminal" },
+        .{ .needle = "iterm", .name = "iTerm2" },
     };
     for (mapped) |m| {
         var ti: usize = 0;
@@ -136,7 +144,7 @@ pub fn detect(io: std.Io, environ: *const std.process.Environ.Map) Info {
     }
 
     if (name.len == 0) {
-        var cur = std.os.linux.getppid();
+        var cur = std.posix.getppid();
         var depth: usize = 0;
         while (cur > 1 and depth < 32) : (depth += 1) {
             const stat = util.procStat(cur) orelse break;
@@ -191,6 +199,17 @@ pub fn preset(io: std.Io, environ: *const std.process.Environ.Map) []const u8 {
 
     var ver = versionOf(io, exe, false);
     if (ver.len == 0) ver = versionOf(io, exe, true);
+    // app-bundle terminals (Terminal.app, iTerm2) have no CLI to ask;
+    // they export their version beside TERM_PROGRAM instead. only
+    // trusted when TERM_PROGRAM names this same terminal (tmux sets the
+    // pair too, for itself).
+    if (ver.len == 0) {
+        if (fromTermProgram(environ)) |tp| {
+            if (std.mem.eql(u8, tp, name)) {
+                if (environ.get("TERM_PROGRAM_VERSION")) |v| ver = util.extractVersion(v);
+            }
+        }
+    }
     const display = pretty(name) orelse name;
 
     if (ver.len != 0) return std.mem.print(&value_buf, "{s} {s}", .{ display, ver }) catch "?";

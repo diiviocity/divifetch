@@ -18,6 +18,7 @@ fn memInfoValue(line: []const u8, key: []const u8) ?u64 {
 pub fn preset() []const u8 {
     if (@import("builtin").os.tag == .openbsd) return openbsdPreset();
     if (@import("builtin").os.tag == .freebsd) return freebsdPreset();
+    if (@import("builtin").os.tag == .macos) return macosPreset();
 
     const content = util.readWholeFile("/proc/meminfo", &file_buf) orelse return "?";
 
@@ -108,6 +109,29 @@ fn freebsdPreset() []const u8 {
     // arithmetic: inactive is the reclaimable page cache.
     const reclaimable = seen *| page;
     const used = if (total > reclaimable) total - reclaimable else 0;
+
+    const used_mib: f64 = @as(f64, @floatFromInt(used)) / (1024.0 * 1024.0);
+    const total_mib: f64 = @as(f64, @floatFromInt(total)) / (1024.0 * 1024.0);
+
+    if (total_mib >= 1024.0)
+        return std.mem.print(&value_buf, "{d:.1} GiB / {d:.1} GiB", .{ used_mib / 1024.0, total_mib / 1024.0 }) catch "?";
+    return std.mem.print(&value_buf, "{d:.0} MiB / {d:.0} MiB", .{ used_mib, total_mib }) catch "?";
+}
+
+// macOS: hw.memsize + host_statistics64, fastfetch's arithmetic
+// (memory_apple.c, after vm_stat(1)): the truly free pages (free less
+// the speculative read-ahead vm_stat counts apart) plus the file-backed
+// cache (external pages, the MemAvailable analogue) are what's not used.
+fn macosPreset() []const u8 {
+    const m = @import("../macos.zig");
+    const phys = m.memsize() orelse return "?";
+    if (phys <= 0) return "?";
+    const vm = m.vmStats() orelse return "?";
+
+    const total: u64 = @intCast(phys);
+    const spare_pages = (@as(u64, vm.free) -| vm.speculative) +| vm.external;
+    const spare = spare_pages *| vm.page_size;
+    const used = if (total > spare) total - spare else 0;
 
     const used_mib: f64 = @as(f64, @floatFromInt(used)) / (1024.0 * 1024.0);
     const total_mib: f64 = @as(f64, @floatFromInt(total)) / (1024.0 * 1024.0);

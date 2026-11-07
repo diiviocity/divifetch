@@ -14,6 +14,14 @@ pub fn preset(io: std.Io) []const u8 {
             return std.mem.print(&value_buf, "up ({s})", .{iface}) catch "?";
         return "down";
     }
+    if (@import("builtin").os.tag == .macos) {
+        // utun* only counts with an IPv4 address on it: macOS keeps
+        // several up at all times (see macos.zig tunnelIface).
+        const m = @import("../macos.zig");
+        if (m.tunnelIface(&iface_buf)) |iface|
+            return std.mem.print(&value_buf, "up ({s})", .{iface}) catch "?";
+        return "down";
+    }
     if (@import("builtin").os.tag == .freebsd) {
         const f = @import("../freebsd.zig");
         if (f.tunnelIface(&iface_buf)) |iface|

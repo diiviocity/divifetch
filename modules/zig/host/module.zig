@@ -1,6 +1,6 @@
 // host module: machine model from DMI (product_name, with
 // board_name as fallback); openbsd reads hw.product, hw.vendor
-// backing it up. Zero spawn.
+// backing it up; macOS answers hw.model ("MacBookPro18,3"). Zero spawn.
 const std = @import("std");
 const util = @import("../util.zig");
 
@@ -9,6 +9,13 @@ var product_buf: [96]u8 = undefined;
 var board_buf: [96]u8 = undefined;
 
 pub fn preset() []const u8 {
+    if (@import("builtin").os.tag == .macos) {
+        const m = @import("../macos.zig");
+        const model = m.hwModel(&product_buf) orelse return "?";
+        const trimmed = std.mem.trim(u8, model, " \t");
+        if (trimmed.len == 0) return "?";
+        return util.snapshot(&value_buf, trimmed);
+    }
     if (@import("builtin").os.tag == .openbsd) {
         const obs = @import("../openbsd.zig");
         // hw.product is DMI's product_name; hw.vendor backs it up on

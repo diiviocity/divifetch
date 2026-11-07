@@ -1,5 +1,8 @@
-// displays module: connected DRM outputs and their preferred mode
+// monitor module: connected DRM outputs and their preferred mode
 // from /sys/class/drm/<conn>/modes. Up to four outputs, "; "-joined.
+// the kind spells monitor: display is a blip machine builtin (the
+// generator's const carries the list), so its forms never reach the
+// entry walk.
 const std = @import("std");
 const util = @import("../util.zig");
 

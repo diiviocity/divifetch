@@ -322,21 +322,25 @@ fn (mut cfg Config) parse_entry(of int, path string, kind_raw string, head reade
 
 	// dynamic entries: fields read, needs are theirs. a module that takes no
 	// argument rejects the one it was given, so nothing is silently dropped.
-	// build-time entries hand their needs to headgen, not to the fetch, and
-	// V entries are always build-time: they bake once, then they are text.
+	// build-time entries hand their needs to headgen, not to the fetch —
+	// V entries aside, which bake through the build script's v_bakes steps
+	// instead of headgen. a runtime V entry rides the generated V fetch
+	// program: modules/v/ presets compiled into run.v, the backend_check
+	// holding the two program languages from ever mixing.
 	if !e.static_ {
 		if e.arg != '' && lip.arg == '' {
 			return error('${path}: module ${kind} takes no argument, but an argument was given (drop :args)')
 		}
-		if lip.language == 'v' {
-			if !e.build_time {
-				return error('${path}: :language v entries run at build time — add :build-time yes, or a config-level :build-time "yes"')
-			}
-		} else if e.build_time {
+		if e.build_time {
 			e.bt_id = cfg.next_bt_id
 			cfg.next_bt_id++
-			cfg.sources[of].headgen_env = cfg.sources[of].headgen_env || lip.deps_env
+			if lip.language != 'v' {
+				cfg.sources[of].headgen_env = cfg.sources[of].headgen_env || lip.deps_env
+			}
 		} else {
+			if lip.language == 'v' && lip.fname == '' {
+				return error('${path}: module ${kind} spells no :fn — a V module that runs at fetch time exposes one (or make the entry :build-time yes, so its script bakes)')
+			}
 			cfg.sources[of].needs_env = cfg.sources[of].needs_env || lip.deps_env
 		}
 	}
@@ -503,7 +507,7 @@ fn (mut cfg Config) load_lip(name string, lang string, dir string) !ModuleLip {
 		// are not link things: a compiled preset takes buffers alone.
 		for dep in lip.deps_raw {
 			if lip.language == 'v' {
-				return error('${lip_path}: :deps does not apply — a V module is run once as a script')
+				return error('${lip_path}: :deps does not apply — a V module reads env and files itself, and compiles with no link line')
 			}
 			if dep == 'std' {
 				lip.deps_std = true
@@ -532,6 +536,20 @@ fn (mut cfg Config) load_lip(name string, lang string, dir string) !ModuleLip {
 				'rust' { 'module.rs' }
 				'd' { 'module.d' }
 				else { 'module.v' }
+			}
+		}
+		// v: a :fn cross-checks module.v the way the zig one crosses
+		// module.zig; a lip without :fn is a script, run once at build
+		// time, so there is no function to look for. the kind name must
+		// also stay clear of the stdlib: the compiler resolves sibling
+		// dirs first, so a modules/v/os would steal every sibling's
+		// `import os`.
+		if lip.language == 'v' {
+			if lip.name in v_stdlib_imports {
+				return error('${lip_path}: the kind ${lip.name} names a V stdlib module — sibling imports would resolve to this dir instead of the stdlib; rename the module')
+			}
+			if lip.fname != '' {
+				cfg.cross_check_v(mut lip)!
 			}
 		}
 	}
@@ -624,6 +642,83 @@ fn (cfg &Config) cross_check(mut lip ModuleLip) ! {
 	if sig.args.len == 1 && lip.arg != '' && lip.arg != sig.args[0] {
 		return error("${lip.dir}/module.lip: :arg :${lip.arg}, but module.zig names the argument '${sig.args[0]}'")
 	}
+}
+
+// cross_check_v crosses a V lip against module.v the way cross_check crosses
+// a zig one: the entry fn answers a string, takes the entry's :args when the
+// preset spells a list parameter, or takes one string argument when the lip
+// spells :arg. there is no context plumbing to check — a V module reads env
+// and files itself, so :deps never applies.
+fn (cfg &Config) cross_check_v(mut lip ModuleLip) ! {
+	sig := read_v_signature(lip.dir, lip.source, lip.fname)!
+	lip.arg_is_list = sig.list_arg
+	if sig.args.len > 1 {
+		return error('${lip.dir}/${lip.source}: ${lip.fname}() takes ${sig.args.len} arguments — lips carry one at most')
+	}
+	if sig.args.len == 1 && lip.arg == '' {
+		return error("${lip.dir}/module.lip: ${lip.fname}() takes the '${sig.args[0]}' argument — add :arg :${sig.args[0]}")
+	}
+	if sig.args.len == 0 && lip.arg != '' {
+		return error('${lip.dir}/module.lip: :arg :${lip.arg}, but ${lip.fname}() takes no argument — drop :arg')
+	}
+	if sig.args.len == 1 && lip.arg != '' && lip.arg != sig.args[0] {
+		return error("${lip.dir}/module.lip: :arg :${lip.arg}, but ${lip.source} names the argument '${sig.args[0]}'")
+	}
+}
+
+// read_v_signature finds one pub fn in a V module source and reads its
+// parameters and answer type: the names, list-presence, and the string
+// answer a preset must return. fails when the file is missing or the fn
+// never appears — the same shape read_zig_signature answers for zig.
+fn read_v_signature(dir string, source string, fname string) !ZigSig {
+	text := os.read_file('${dir}/${source}') or {
+		return error('${dir}/${source} is missing, so module.lip cannot be checked')
+	}
+	prefix := 'pub fn ${fname}('
+	idx := text.index(prefix) or {
+		return error("${dir}/${source} has no 'pub fn ${fname}(' for module.lip's :fn")
+	}
+	start := idx + prefix.len
+	mut depth := 1
+	mut end := start
+	for end < text.len && depth > 0 {
+		c := text[end]
+		if c == `(` { depth++ }
+		if c == `)` { depth-- }
+		end++
+	}
+	params_text := text[start..end - 1].trim_space()
+	mut sig := ZigSig{
+		args: []
+	}
+	for raw_part in params_text.split(',') {
+		part := raw_part.trim_space()
+		if part == '' { continue }
+		if part.contains('[]string') {
+			// one argument holding the entry's :args list: spelled
+			// (name []string), one param, list answers.
+			pname := part.fields()[0]
+			sig.list_arg = true
+			sig.args << pname
+			continue
+		}
+		// a plain argument's name is everything before its type — the
+		// first whitespace token of the part.
+		pname := part.fields()[0]
+		sig.args << pname
+	}
+	// the answer: whatever sits between the close of the fn and its body
+	// block must promise a string — plain, optional or result — since a
+	// baked piece concatenates onto the output line.
+	mut brace := end
+	for brace < text.len && text[brace] != `{` {
+		brace++
+	}
+	ret := text[end..brace].trim_space()
+	if !ret.contains('string') {
+		return error('${dir}/${source}: ${fname}() answers ${if ret != '' { ret } else { 'nothing' }} — a V preset answers a string')
+	}
+	return sig
 }
 
 // parse_run_form reads one (run ...) form into the source's runs list:

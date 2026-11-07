@@ -1,0 +1,37 @@
+; the v-fetch example: the same config vconf drove, all-V. runtime
+; modules ride the generated V program (one main, v -prod, the module
+; symlinks beside it); the hello_world_v script bakes once through the
+; build's v_bakes steps. swap answers '?' here — the box has none.
+(config :buffer-size 256
+        :art-file "ascii/cat.txt"
+        :art-padding 3
+        :art-prefix "\e[1m\e[34m"
+        :art-suffix "\e[0m"
+        :key-prefix "\e[1m\e[34m"
+        :key-suffix "\e[0m: "
+        :languages [:v])
+
+(static "S C O R E" "artix")
+(user)
+(hostname)
+(kernel)
+(uptime)
+(distro)
+(battery)
+(boot :key "Boot")
+(cpu :key "Cpu")
+(monitor :key "Display")
+(host)
+(loadavg :key "Load")
+(memory)
+(mount :key "Mount" :args ["/"])
+(packages)
+(pid1 :key "Init")
+(shell)
+(swap)
+(temp :key "Temp")
+(terminal)
+(font)
+(vpn)
+(wm)
+(hello_world)

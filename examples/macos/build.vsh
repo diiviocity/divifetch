@@ -6,13 +6,13 @@ import x.imp
 import os
 
 const build_dir = 'target'
-const target_exe = os.join_path_single(build_dir, 'divifetch')
+const target_exe = os.join_path_single(build_dir, 'divifetch-macos')
 const zig = 'zig'
-const zig_flags = '-Doptimize=ReleaseFast -fstrip'
+const zig_flags = '-Doptimize=ReleaseFast -fstrip -target aarch64-macos.11.0 -lc'
 const headgen_file = '.tmp/headgen.zig'
 const headgen_exe = os.join_path_single(build_dir, 'headgen')
 const dest_dir = '/usr/local/bin'
-const install_path = '/usr/local/bin/divifetch'
+const install_path = '/usr/local/bin/divifetch-macos'
 const c_sources = []string{}
 const objects = []string{}
 const compile_steps = [][]string{}
@@ -99,7 +99,7 @@ ctx.add_flow(
 		}
 		// build-time entries bake here once: headgen runs the zig, c, cpp
 		// and rust ones, the v_bakes steps run the V ones, and their
-		// output lands in the bake file run.zig imports.
+		// output lands in the bake file the fetch imports.
 		mut bake_out := ''
 		if os.exists(headgen_file) {
 			mut argv := [zig, 'build-exe']
@@ -115,7 +115,7 @@ ctx.add_flow(
 				print(bake.output)
 				return error('headgen exited with ' + bake.exit_code.str())
 			}
-			bake_out += bake.output
+			bake_out = bake.output
 		}
 		os.write_file('.tmp/bake.zig', bake_out)!
 		mut argv := [zig, 'build-exe']
@@ -154,7 +154,7 @@ ctx.add_flow(
 	gives: [install_path]
 	flow: fn (self imp.Flow) ! {
 		os.mkdir_all(dest_dir)!
-		imp.system_args(['install', '-Dm755', target_exe, install_path])!
+		imp.system_args(['install', '-m755', target_exe, install_path])!
 	}
 )
 

@@ -1,0 +1,4 @@
+;; loadavg module — the first three fields of /proc/loadavg.
+(module
+	:language "v"
+	:fn "preset")

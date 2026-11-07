@@ -1,0 +1,4 @@
+;; cpu module — model name, core count and cpu0's live frequency off /proc/cpuinfo + cpufreq.
+(module
+	:language "v"
+	:fn "preset")

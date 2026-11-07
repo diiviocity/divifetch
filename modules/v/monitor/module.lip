@@ -1,0 +1,6 @@
+;; monitor module — connected DRM outputs and preferred modes. the kind
+;; spells monitor: display is a blip machine builtin, its forms never
+;; reaching the entry walk (the generator's const holds the list).
+(module
+	:language "v"
+	:fn "preset")

@@ -1,0 +1,4 @@
+;; pid1 module — pid 1's comm, one read off /proc/1/comm.
+(module
+	:language "v"
+	:fn "preset")

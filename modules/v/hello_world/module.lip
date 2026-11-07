@@ -1,0 +1,4 @@
+;; hello_world module — generator test stub, standing in for the old hello_world_c and hello_world_cpp.
+(module
+	:language "v"
+	:fn "preset")

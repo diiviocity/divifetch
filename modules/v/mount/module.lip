@@ -1,0 +1,5 @@
+;; mount module — statfs(2) on :arg :path, prints used / total sizes.
+(module
+	:language "v"
+	:fn "preset"
+	:arg :path)

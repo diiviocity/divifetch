@@ -1,0 +1,4 @@
+;; temp module — the first hwmon thermal sensor, "<n>°C (chip)".
+(module
+	:language "v"
+	:fn "preset")

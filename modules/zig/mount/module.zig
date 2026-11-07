@@ -59,6 +59,24 @@ pub fn preset(path: []const u8) []const u8 {
         const total_str = humanSize(total, &size_buf_total);
         return std.mem.print(&value_buf, "{s} / {s}", .{ used_str, total_str }) catch "?";
     }
+    if (@import("builtin").os.tag == .macos) {
+        // statfs(2) through libSystem, the 64-bit block counts (macOS'
+        // statvfs truncates them to 32 bits).
+        const m = @import("../macos.zig");
+        const stat = m.statfsOf(path) orelse return "?";
+        const block_size: u64 = stat.f_bsize;
+        const total = stat.f_blocks * block_size;
+        // APFS volumes share one container: f_blocks and f_bfree both
+        // answer for the container, so "/" (the sealed system volume
+        // since Catalina) reports the whole disk's fill, the same as
+        // /System/Volumes/Data does.
+        const free = stat.f_bfree * block_size;
+        const used = if (total > free) total - free else 0;
+
+        const used_str = humanSize(used, &size_buf_used);
+        const total_str = humanSize(total, &size_buf_total);
+        return std.mem.print(&value_buf, "{s} / {s}", .{ used_str, total_str }) catch "?";
+    }
     if (@import("builtin").os.tag == .freebsd) {
         const f = @import("../freebsd.zig");
         const stat = f.statvfsOf(path) orelse return "?";

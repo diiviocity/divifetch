@@ -1,6 +1,6 @@
 (mount :args ["/"])
 (packages)
-(os)
+(distro)
 (hostname)
 (kernel)
 (memory)

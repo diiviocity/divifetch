@@ -1,0 +1,4 @@
+;; theme module — GTK theme / icons / font from gtk settings.ini.
+(module
+	:language "v"
+	:fn "preset")

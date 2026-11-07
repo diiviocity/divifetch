@@ -1,4 +1,6 @@
-;; os module — distribution name from /etc/os-release.
+;; distro module — distribution name from /etc/os-release. the kind
+;; spells distro, not os: the V tree carries the same kind, and a V
+;; module may not take a stdlib name (os would shadow `import os`).
 ;;
 ;; :fn is the entry the generator calls for a dynamic entry of this
 ;; name, :deps is the runtime context it is passed in parameter order

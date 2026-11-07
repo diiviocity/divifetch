@@ -1,0 +1,4 @@
+;; wm module — desktop environment variables first, then a /proc/*/comm scan for a window manager process.
+(module
+	:language "v"
+	:fn "preset")

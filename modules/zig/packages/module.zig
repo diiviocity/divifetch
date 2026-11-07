@@ -8,8 +8,9 @@
 // "\nC:Q" record signature, dpkg counts install-ok status lines, emerge
 // counts two dir levels under /var/db/pkg, eopkg and pkgtool count
 // non-dot entries, pacman counts the local db dirs, xbps finds the
-// pkgdb-<system> file inside /var/db/xbps, and the BSD targets count
-// their /var/db/pkg directories (one level: pkg_add and pkg(8) both). a backend whose db is not
+// pkgdb-<system> file inside /var/db/xbps, the BSD targets count
+// their /var/db/pkg directories (one level: pkg_add and pkg(8) both),
+// and macOS counts Homebrew's Cellar/Caskroom and MacPorts' software dir. a backend whose db is not
 // there returns none, and the next candidate gets its turn.
 const std = @import("std");
 const util = @import("../util.zig");
@@ -84,6 +85,36 @@ fn bsd_pkg_dirs(io: std.Io) ?usize {
     return util.countNonDotEntries(io, "/var/db/pkg");
 }
 
+// macOS: Homebrew keeps one directory per formula in its Cellar (and
+// per cask in its Caskroom) under the arch's own prefix — /opt/homebrew
+// on Apple silicon, /usr/local on Intel; both are tried so a Rosetta
+// build still finds the native tree. MacPorts keeps one directory per
+// port under its software dir.
+fn brewCount(io: std.Io, leaf: []const u8) ?usize {
+    const prefixes = [_][]const u8{ "/opt/homebrew", "/usr/local" };
+    for (prefixes) |prefix| {
+        const path = std.mem.print(&path_buf, "{s}/{s}", .{ prefix, leaf }) catch continue;
+        if (util.countNonDotEntries(io, path)) |n| {
+            if (n != 0) return n;
+        }
+    }
+    return null;
+}
+
+fn brew(io: std.Io) ?usize {
+    return brewCount(io, "Cellar");
+}
+
+fn brew_cask(io: std.Io) ?usize {
+    return brewCount(io, "Caskroom");
+}
+
+fn port(io: std.Io) ?usize {
+    const n = util.countNonDotEntries(io, "/opt/local/var/macports/software") orelse return null;
+    if (n == 0) return null;
+    return n;
+}
+
 fn pkgtool(io: std.Io) ?usize {
     return util.countNonDotEntries(io, "/var/log/packages");
 }
@@ -126,9 +157,15 @@ const openbsd_tables = [_]Backend{
 const freebsd_tables = [_]Backend{
     .{ .name = "freebsd", .count = bsd_pkg_dirs },
 };
+const macos_tables = [_]Backend{
+    .{ .name = "brew", .count = brew },
+    .{ .name = "brew-cask", .count = brew_cask },
+    .{ .name = "port", .count = port },
+};
 const all_tables = switch (@import("builtin").os.tag) {
     .openbsd => openbsd_tables[0..],
     .freebsd => freebsd_tables[0..],
+    .macos => macos_tables[0..],
     else => linux_tables[0..],
 };
 

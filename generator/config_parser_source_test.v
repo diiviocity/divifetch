@@ -704,11 +704,84 @@ fn test_v_module_requires_the_build_time() {
 		os.rm('modules/v/bare_v/module.lip') or {}
 		os.rmdir('modules/v/bare_v') or {}
 	}
+	// a runtime V entry rides the generated V fetch program, but the
+	// module must expose the fn the call names — a bare lip stays a
+	// build-time script.
 	collected_from_propform('', '(bare_v)') or {
-		assert err.msg().contains(':language v entries run at build time')
+		assert err.msg().contains('module bare_v spells no :fn')
 		return
 	}
-	panic('v entry without build-time should have stopped')
+	panic('v entry without a fn should have stopped')
+}
+
+fn test_v_runtime_entry_compiles_into_the_v_backend() {
+	os.chdir(fixture_dir)!
+	mkdir_one('modules/v/ready_v', 'module.lip', '(module :language "v" :fn "preset")')
+	os.write_file('modules/v/ready_v/module.v', "module ready_v\n\npub fn preset() string {\n	return 'ready'\n}\n")!
+	defer {
+		os.rm('modules/v/ready_v/module.lip') or {}
+		os.rm('modules/v/ready_v/module.v') or {}
+		os.rmdir('modules/v/ready_v') or {}
+	}
+	cfg := collected_from_propform('(config :languages [:v])', '(ready_v)')!
+	assert backend_of(cfg) == 'v'
+	assert cfg.sources[0].entries[0].build_time == false
+	assert cfg.sources[0].entries[0].bt_id == -1
+}
+
+fn test_v_build_time_entry_still_bakes() {
+	os.chdir(fixture_dir)!
+	mkdir_one('modules/v/baked_v', 'module.lip', '(module :language "v")')
+	os.write_file('modules/v/baked_v/module.v', "// a script: prints its baked line.\nimport os\n\nfn main() {\n	println(os.args[1..].join(' '))\n}\n")!
+	defer {
+		os.rm('modules/v/baked_v/module.lip') or {}
+		os.rm('modules/v/baked_v/module.v') or {}
+		os.rmdir('modules/v/baked_v') or {}
+	}
+	cfg := collected_from_propform('(config :languages [:v])', '(baked_v :build-time yes)')!
+	assert backend_of(cfg) == 'v'
+	e := cfg.sources[0].entries[0]
+	assert e.build_time
+	assert e.bt_id == 0
+	steps := v_bake_steps(cfg)
+	assert steps.len == 1
+	assert steps[0].argv[2..3] == ['modules/v/baked_v/module.v']
+}
+
+fn test_backend_check_refuses_a_runtime_mix() {
+	os.chdir(fixture_dir)!
+	mkdir_one('modules/v/ready_v', 'module.lip', '(module :language "v" :fn "preset")')
+	defer {
+		os.rm('modules/v/ready_v/module.lip') or {}
+		os.rmdir('modules/v/ready_v') or {}
+	}
+	os.write_file('modules/v/ready_v/module.v', "module ready_v\n\npub fn preset() string {\n	return 'ready'\n}\n")!
+	defer {
+		os.rm('modules/v/ready_v/module.v') or {}
+	}
+	// hello_world_c is a real shipped compiled module: runtime compiled
+	// and runtime V cannot ride one generated program.
+	collected_from_propform('(config :languages [:v :c])', '(hello_world_c) (ready_v)') or {
+		assert err.msg().contains('the fetch compiles as one language')
+		return
+	}
+	panic('a runtime V entry under the zig backend should have stopped')
+}
+
+fn test_backend_check_refuses_a_zig_bake_under_all_v() {
+	os.chdir(fixture_dir)!
+	mkdir_one('modules/v/ready_v', 'module.lip', '(module :language "v" :fn "preset")')
+	os.write_file('modules/v/ready_v/module.v', "module ready_v\n\npub fn preset() string {\n	return 'ready'\n}\n")!
+	defer {
+		os.rm('modules/v/ready_v/module.lip') or {}
+		os.rm('modules/v/ready_v/module.v') or {}
+		os.rmdir('modules/v/ready_v') or {}
+	}
+	collected_from_propform('(config :languages [:v :c])', '(hello_world_c :build-time yes) (ready_v)') or {
+		assert err.msg().contains('bake through headgen')
+		return
+	}
+	panic('a headgen bake under the V backend should have stopped')
 }
 
 fn test_cross_check_catches_a_dep_mismatch() {

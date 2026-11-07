@@ -335,7 +335,7 @@ fn test_output_buildfile_consts() {
 		modules: map[string]ModuleLip{}
 		warned:  map[string]bool{}
 	}
-	text := output_buildfile(conf, build_regen_args(build_opts()), &fixed, '.tmp/run.zig', '.tmp/bake.zig', '.tmp/run-run.zig')
+	text := output_buildfile(conf, build_regen_args(build_opts()), &fixed, '.tmp/run.zig', '.tmp/bake.zig', '.tmp/run-run.zig') or { panic(err.msg()) }
 	assert text.contains("const build_dir = 'target'")
 	assert text.contains("const target_exe = os.join_path_single(build_dir, 'myfetch')")
 	assert text.contains("const zig = 'myzig'")
@@ -388,7 +388,7 @@ fn test_output_buildfile_emits_the_v_bakes_and_ids() {
 		arg:        'hi there'
 		line:       4
 	}
-	text := output_buildfile(BuildConf{}, build_regen_args(build_opts()), &cfg, '.tmp/run.zig', '.tmp/bake.zig', '.tmp/run-run.zig')
+	text := output_buildfile(BuildConf{}, build_regen_args(build_opts()), &cfg, '.tmp/run.zig', '.tmp/bake.zig', '.tmp/run-run.zig') or { panic(err.msg()) }
 	assert text.contains("const v_bakes = [['v', 'run', 'modules/v/hello_world_v/module.v', 'hi there']]")
 	assert text.contains('const v_bake_ids = [0]')
 	assert text.contains('fn esc(value string) string {')
@@ -397,7 +397,7 @@ fn test_output_buildfile_emits_the_v_bakes_and_ids() {
 
 fn test_output_buildfile_gains_the_c_source_args() {
 	mut cfg := c_shaped_tree()
-	text := output_buildfile(BuildConf{}, build_regen_args(build_opts()), &cfg, '.tmp/run.zig', '.tmp/bake.zig', '.tmp/run-run.zig')
+	text := output_buildfile(BuildConf{}, build_regen_args(build_opts()), &cfg, '.tmp/run.zig', '.tmp/bake.zig', '.tmp/run-run.zig') or { panic(err.msg()) }
 	assert text.contains("const c_sources = ['modules/c/hello_world_c/module.c']")
 	// nothing links by default: a lip without :deps keeps the link bare.
 	assert text.contains('const extra_link = []string{}')
@@ -407,16 +407,16 @@ fn test_output_buildfile_links_what_the_deps_say() {
 	// :std answers per language and raw deps ride as -l flags.
 	mut cfg := c_shaped_tree()
 	cfg.modules['hello_world_c'].deps_std = true
-	std_c := output_buildfile(BuildConf{}, build_regen_args(build_opts()), &cfg, '.tmp/run.zig', '.tmp/bake.zig', '.tmp/run-run.zig')
+	std_c := output_buildfile(BuildConf{}, build_regen_args(build_opts()), &cfg, '.tmp/run.zig', '.tmp/bake.zig', '.tmp/run-run.zig') or { panic(err.msg()) }
 	assert std_c.contains("const extra_link = ['-lc']")
 	cfg.modules['hello_world_c'].deps_std = false
 	cfg.modules['hello_world_c'].deps_libs = ['m', 'pthread']
-	raw := output_buildfile(BuildConf{}, build_regen_args(build_opts()), &cfg, '.tmp/run.zig', '.tmp/bake.zig', '.tmp/run-run.zig')
+	raw := output_buildfile(BuildConf{}, build_regen_args(build_opts()), &cfg, '.tmp/run.zig', '.tmp/bake.zig', '.tmp/run-run.zig') or { panic(err.msg()) }
 	assert raw.contains("const extra_link = ['-lm', '-lpthread']")
 	cfg.modules['hello_world_c'].language = 'd'
 	cfg.modules['hello_world_c'].deps_libs = []
 	cfg.modules['hello_world_c'].deps_std = true
-	std_d := output_buildfile(BuildConf{}, build_regen_args(build_opts()), &cfg, '.tmp/run.zig', '.tmp/bake.zig', '.tmp/run-run.zig')
+	std_d := output_buildfile(BuildConf{}, build_regen_args(build_opts()), &cfg, '.tmp/run.zig', '.tmp/bake.zig', '.tmp/run-run.zig') or { panic(err.msg()) }
 	// full d rides phobos and druntime, and libc carries them.
 	assert std_d.contains("const extra_link = ['-lphobos2', '-lc']")
 }
@@ -426,12 +426,12 @@ fn test_output_buildfile_steps_carry_the_d_recipe() {
 	// the default recipe compiles betterC, riding no runtime at all.
 	cfg.modules['hello_world_c'].language = 'd'
 	cfg.modules['hello_world_c'].source = 'module.d'
-	better := output_buildfile(BuildConf{}, build_regen_args(build_opts()), &cfg, '.tmp/run.zig', '.tmp/bake.zig', '.tmp/run-run.zig')
+	better := output_buildfile(BuildConf{}, build_regen_args(build_opts()), &cfg, '.tmp/run.zig', '.tmp/bake.zig', '.tmp/run-run.zig') or { panic(err.msg()) }
 	assert better.contains("const compile_steps = [['dmd', '-c', '-betterC', '-of=modules/c/hello_world_c/module.o', 'modules/c/hello_world_c/module.d']]")
 	assert better.contains("const objects = ['modules/c/hello_world_c/module.o']")
 	// :std compiles full d and the object joins the phobos link.
 	cfg.modules['hello_world_c'].deps_std = true
-	full := output_buildfile(BuildConf{}, build_regen_args(build_opts()), &cfg, '.tmp/run.zig', '.tmp/bake.zig', '.tmp/run-run.zig')
+	full := output_buildfile(BuildConf{}, build_regen_args(build_opts()), &cfg, '.tmp/run.zig', '.tmp/bake.zig', '.tmp/run-run.zig') or { panic(err.msg()) }
 	assert !full.contains('-betterC')
 	assert full.contains('-of=modules/c/hello_world_c/module.o')
 }
@@ -447,7 +447,7 @@ fn test_output_buildfile_carries_the_rust_ext_pairs() {
 		key:  'Ext'
 		line: 4
 	}
-	text := output_buildfile(BuildConf{}, build_regen_args(build_opts()), &cfg, '.tmp/run.zig', '.tmp/bake.zig', '.tmp/run-run.zig')
+	text := output_buildfile(BuildConf{}, build_regen_args(build_opts()), &cfg, '.tmp/run.zig', '.tmp/bake.zig', '.tmp/run-run.zig') or { panic(err.msg()) }
 	assert text.contains("const rust_ext = [['hello_world_rustix', 'modules/rust/hello_world_rustix', 'module.rs', 'rustix 1.1.* features=[system]']]")
 	// the archive rides the objects const, not the zig argv.
 	assert text.contains("const objects = ['modules/rust/hello_world_rustix/module.a']")
@@ -531,7 +531,7 @@ fn test_output_buildfile_nostd_links_bare() {
 		key:  'Nostd'
 		line: 4
 	}
-	text := output_buildfile(BuildConf{}, build_regen_args(build_opts()), &cfg, '.tmp/run.zig', '.tmp/bake.zig', '.tmp/run-run.zig')
+	text := output_buildfile(BuildConf{}, build_regen_args(build_opts()), &cfg, '.tmp/run.zig', '.tmp/bake.zig', '.tmp/run-run.zig') or { panic(err.msg()) }
 	assert text.contains("const rust_ext = [['hello_world_rustix_nostd', 'modules/rust/hello_world_rustix_nostd', 'module.rs', 'rustix 1.1.* no-default-features features=[system]']]")
 	assert text.contains("const objects = ['modules/rust/hello_world_rustix_nostd/module.a']")
 	assert text.contains('const extra_link = []string{}')
@@ -562,7 +562,7 @@ fn test_output_buildfile_wires_the_twin_when_runs_exist() {
 		args: []
 		line: 3
 	}]
-	text := output_buildfile(BuildConf{}, build_regen_args(build_opts()), &cfg, '.tmp/run.zig', '.tmp/bake.zig', '.tmp/run-run.zig')
+	text := output_buildfile(BuildConf{}, build_regen_args(build_opts()), &cfg, '.tmp/run.zig', '.tmp/bake.zig', '.tmp/run-run.zig') or { panic(err.msg()) }
 	assert text.contains("const run_target_exe = os.join_path_single(build_dir, 'divifetch-run')")
 	assert text.contains('ctx.add_target(run_target_exe)')
 	assert text.contains("run_argv << ['-femit-bin=' + run_target_exe]")
@@ -571,7 +571,7 @@ fn test_output_buildfile_wires_the_twin_when_runs_exist() {
 	// a config without runs keeps the old shape: the plain fetch is the
 	// run flow's target, no twin anything.
 	mut plaincfg := collected_tree()!
-	plain := output_buildfile(BuildConf{}, build_regen_args(build_opts()), &plaincfg, '.tmp/run.zig', '.tmp/bake.zig', '.tmp/run-run.zig')
+	plain := output_buildfile(BuildConf{}, build_regen_args(build_opts()), &plaincfg, '.tmp/run.zig', '.tmp/bake.zig', '.tmp/run-run.zig') or { panic(err.msg()) }
 	assert !plain.contains('run_target_exe')
 	assert plain.contains('ctx.add_auto_flow(.run)')
 }
@@ -671,6 +671,53 @@ fn test_parse_build_conf_unknown_key_stops() {
 		return
 	}
 	panic('unknown build key should have stopped')
+}
+
+fn test_parse_build_conf_named_one_must_exist() {
+	os.chdir(fixture_dir)!
+	// a named conf — an arch anchor — stops the generator when the file
+	// never landed; the default name keeps its silent defaults.
+	parse_build_conf('arm') or {
+		assert err.msg().contains("build conf 'arm' is missing")
+		return
+	}
+	panic('a missing named build conf should have stopped')
+}
+
+fn test_resolve_build_conf_answers_the_named_floor() {
+	os.chdir(fixture_dir)!
+	assert resolve_build_conf('build.conf') == 'build.conf'
+	assert resolve_build_conf('x86_64') == 'configs/x86_64.conf'
+	assert resolve_build_conf('nothing-named') == 'nothing-named'
+}
+
+fn test_v_buildfile_writes_the_conf_flags_into_the_argv() {
+	os.chdir(fixture_dir)!
+	mut cfg := v_shaped_tree()
+	mut winconf := BuildConf{}
+	winconf.flags = '-b x64 -gc none'
+	mut text := output_buildfile(winconf, build_regen_args(build_opts()), &cfg, '.tmp/vfetch/run.v', '.tmp/vfetch/bake.v', '.tmp/vfetch-run/run-run.v') or { panic(err.msg()) }
+	// the flags own the compile words and run before the -o pair.
+	assert text.contains("mut argv := ['v', '-b', 'x64', '-gc', 'none']")
+	assert text.contains("argv << ['-o', target_exe]")
+	assert text.contains('argv << [v_src_dir]')
+	// the twin follows the same flags (the tree gains run forms for it).
+	mut re := RunEntry{
+		bin: './tools/notify'
+		line: 4
+	}
+	cfg.sources[0].runs << re
+	text = output_buildfile(winconf, build_regen_args(build_opts()), &cfg, '.tmp/vfetch/run.v', '.tmp/vfetch/bake.v', '.tmp/vfetch-run/run-run.v') or { panic(err.msg()) }
+	assert text.contains("mut run_argv := ['v', '-b', 'x64', '-gc', 'none']")
+	// the default flags are the zig backend's words: they stay out, and
+	// the bare v answer keeps its -prod.
+	cfg.sources[0].runs = []
+	// the default flags are the zig backend's words: they stay out, and
+	// the bare v answer keeps its -prod.
+	plain := BuildConf{}
+	text = output_buildfile(plain, build_regen_args(build_opts()), &cfg, '.tmp/vfetch/run.v', '.tmp/vfetch/bake.v', '.tmp/vfetch-run/run-run.v') or { panic(err.msg()) }
+	assert !text.contains("argv << ['-Doptimize=ReleaseFast']")
+	assert text.contains("imp.system_args(['v', '-new-compiler', '-prod', '-freestanding', '-gc', 'none', '-o', target_exe, v_src_dir])")
 }
 
 fn test_output_example_config_holds_the_shapes() {
@@ -909,4 +956,112 @@ fn test_v_module_command_rejected() {
 fn mkdir_one(dir string, file string, content string) {
 	os.mkdir_all(dir) or { panic('mkdir failed: ' + err.msg()) }
 	os.write_file(dir + '/' + file, content) or { panic('write failed: ' + err.msg()) }
+}
+
+// a v-shaped registry, hand-built the way load_module would have found
+// modules/v/ ready_v: one runtime V entry. the tree returns by value; the
+// emitter tests that grow it take mut Config.
+fn v_shaped_tree() Config {
+	mut cfg := Config{
+		sources: [Sources{
+			entries: []
+		}]
+		modules: map[string]ModuleLip{}
+		warned:  map[string]bool{}
+	}
+	cfg.modules['ready_v'] = ModuleLip{
+		name:     'ready_v'
+		fname:    'preset'
+		language: 'v'
+		dir:      'modules/v/ready_v'
+		source:   'module.v'
+	}
+	cfg.sources[0].entries << Entry{
+		kind:    'ready_v'
+		key:     'Ready'
+		static_: false
+		line:    3
+	}
+	return cfg
+}
+
+fn test_backend_of_answers_per_entry_language() {
+	mut cfg := v_shaped_tree()
+	assert backend_of(&cfg) == 'v'
+	mut zc := c_shaped_tree()
+	assert backend_of(&zc) == 'zig'
+	// static entries decide nothing.
+	mut sc := v_shaped_tree()
+	sc.sources[0].entries[0].static_ = true
+	assert backend_of(&sc) == 'zig'
+}
+
+fn test_entry_call_v_passes_the_arg() {
+	mut cfg := v_shaped_tree()
+	call := entry_call_v(cfg, &cfg.sources[0].entries[0])
+	assert call == 'ready_v.preset()'
+	cfg.modules['ready_v'].arg = 'path'
+	cfg.sources[0].entries[0].arg = '/home'
+	assert entry_call_v(cfg, &cfg.sources[0].entries[0]) == "ready_v.preset('/home')"
+	// a list-arg preset: the :args liking rides as the one list argument.
+	cfg.modules['ready_v'].arg_is_list = true
+	cfg.sources[0].entries[0].args = ['neovim', 'foot']
+	assert entry_call_v(cfg, &cfg.sources[0].entries[0]) == "ready_v.preset(['neovim', 'foot'])"
+}
+
+fn test_v_str_escape_handles_the_lang_gotchas() {
+	assert v_str_escape('a\nb') == 'a\\nb'
+	assert v_str_escape("it's") == "it\\'s"
+	assert v_str_escape('back\\slash') == 'back\\\\slash'
+	// the dollar: interpolation is V's, so a literal dollar hides inside one.
+	assert v_str_escape('$x') == '\$x'
+}
+
+fn test_output_source_v_shape() {
+	mut cfg := v_shaped_tree()
+	src := output_source_v(&cfg, ['v.conf'], false) or { panic(err.msg()) }
+	assert src.contains('// run.v — the divifetch-v fetch entry. generated by the generator.')
+	assert src.contains('module main')
+	// a plain fetch never runs children: no os import to silence.
+	assert !src.contains('import os')
+	assert src.contains('import ready_v')
+	assert src.contains('pub fn main() {')
+	assert src.contains('fn run_0() {')
+	// the piece shape: the key rides its own literal, the call sits where
+	// the value goes, and the newline closes the line. print — the batch
+	// ends its own line.
+	assert src.contains("sb.write_string('Ready')")
+	assert src.contains("sb.write_string(ready_v.preset())")
+	assert src.contains("sb.write_string('\\n')")
+	assert src.contains('print(sb.str())')
+}
+
+fn test_output_source_v_random_pick() {
+	mut cfg := v_shaped_tree()
+	cfg.sources << Sources{
+		entries: []
+	}
+	src := output_source_v(&cfg, ['a.lip', 'b.lip'], false) or { panic(err.msg()) }
+	assert src.contains('import rand')
+	assert src.contains('chosen = rand.intn(2) or { 0 }')
+	assert src.contains('match chosen {')
+}
+
+fn test_output_source_v_twin_spawns() {
+	mut cfg := v_shaped_tree()
+	mut re := RunEntry{
+		bin:  './tools/notify'
+		line: 4
+	}
+	re.args = ['fetch', 'done']
+	cfg.sources[0].runs << re
+	src := output_source_v(&cfg, ['v.conf'], true) or { panic(err.msg()) }
+	assert src.contains('// run-run.v — the divifetch-run twin. generated by the generator.')
+	// runs import os: the chain is the only user here too.
+	assert src.contains('import os')
+	assert src.contains("mut child := os.new_process('./tools/notify')")
+	assert src.contains("child.set_args(['fetch', 'done'])")
+	assert src.contains('child.run()')
+	assert src.contains('child.wait()')
+	assert src.contains('exit(child.code)')
 }

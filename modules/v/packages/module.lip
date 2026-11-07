@@ -1,0 +1,5 @@
+;; packages module — the merged package-system counter; :arg :choices lists candidate backends in try order.
+(module
+	:language "v"
+	:fn "preset"
+	:arg :choices)

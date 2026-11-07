@@ -15,6 +15,7 @@ var obs_freq_buf: [32]u8 = undefined;
 pub fn preset() []const u8 {
     if (@import("builtin").os.tag == .openbsd) return openbsdPreset();
     if (@import("builtin").os.tag == .freebsd) return freebsdPreset();
+    if (@import("builtin").os.tag == .macos) return macosPreset();
 
     var model: []const u8 = "";
     var cores: usize = 0;
@@ -106,6 +107,35 @@ fn freebsdPreset() []const u8 {
         if (cores != 0)
             return std.mem.print(&value_buf, "{s} ({d}) @ {d:.2}GHz", .{ model, cores, ghz }) catch "?";
         return std.mem.print(&value_buf, "{s} @ {d:.2}GHz", .{ model, ghz }) catch "?";
+    }
+    if (cores != 0)
+        return std.mem.print(&value_buf, "{s} ({d})", .{ model, cores }) catch "?";
+    return util.snapshot(&value_buf, model);
+}
+
+// macOS: machdep.cpu.brand_string + hw.ncpu + hw.cpufrequency. Apple
+// silicon publishes no frequency at all ("Apple M2 Pro (12)"); Intel
+// Macs answer their nominal clock in Hz.
+fn macosPreset() []const u8 {
+    const m = @import("../macos.zig");
+    var model_raw: [128]u8 = undefined;
+    const raw = m.cpuModel(&model_raw) orelse return "?";
+    var model = util.snapshot(&model_buf, raw);
+
+    if (std.mem.find(u8, model, " @ ")) |at| {
+        model = std.mem.trimEnd(u8, model[0..at], " \t");
+    }
+    model = std.mem.trimEnd(u8, model, " \t");
+    if (model.len == 0) return "?";
+
+    const cores = m.ncpu() orelse 0;
+    if (m.cpuFreqHz()) |hz| {
+        if (hz > 0) {
+            const ghz: f64 = @as(f64, @floatFromInt(hz)) / 1_000_000_000.0;
+            if (cores != 0)
+                return std.mem.print(&value_buf, "{s} ({d}) @ {d:.2}GHz", .{ model, cores, ghz }) catch "?";
+            return std.mem.print(&value_buf, "{s} @ {d:.2}GHz", .{ model, ghz }) catch "?";
+        }
     }
     if (cores != 0)
         return std.mem.print(&value_buf, "{s} ({d})", .{ model, cores }) catch "?";

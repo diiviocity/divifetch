@@ -1,5 +1,7 @@
 // wm module: desktop environment variables first, then a scan of
-// /proc/*/comm for a window manager process.
+// /proc/*/comm for a window manager process. macOS scans libproc's pid
+// list for the third-party tiling managers instead, and answers the
+// system's own compositor when none runs.
 const std = @import("std");
 const util = @import("../util.zig");
 
@@ -44,6 +46,8 @@ pub fn preset(io: std.Io, environ: *const std.process.Environ.Map) []const u8 {
         }
     }
 
+    if (@import("builtin").os.tag == .macos) return macosScan();
+
     // Last resort: look for a running window manager process.
     var proc_dir = std.Io.Dir.openDirAbsolute(io, "/proc", .{ .iterate = true }) catch return "?";
     defer proc_dir.close(io);
@@ -63,4 +67,31 @@ pub fn preset(io: std.Io, environ: *const std.process.Environ.Map) []const u8 {
     }
 
     return "?";
+}
+
+// the window managers macOS users run on top of the WindowServer, by
+// process name — fastfetch's maintained list (wm_apple.m); they're
+// always the user's own processes, which proc_name answers. the
+// compositor stays the WM, the tiler rides beside it like fastfetch's
+// "WM plugin": "Quartz Compositor (yabai)".
+const macos_wms = [_]struct { proc: []const u8, name: []const u8 }{
+    .{ .proc = "rectangle", .name = "Rectangle" },
+    .{ .proc = "yabai", .name = "yabai" },
+    .{ .proc = "aerospace", .name = "AeroSpace" },
+    .{ .proc = "amethyst", .name = "Amethyst" },
+    .{ .proc = "glazewm", .name = "GlazeWM" },
+};
+
+fn macosScan() []const u8 {
+    const m = @import("../macos.zig");
+    var name_buf: [64]u8 = undefined;
+    for (m.allPids()) |pid| {
+        if (pid <= 0) continue;
+        const name = m.procName(pid, &name_buf) orelse continue;
+        for (macos_wms) |wm| {
+            if (std.ascii.eqlIgnoreCase(name, wm.proc))
+                return std.mem.print(&value_buf, "Quartz Compositor ({s})", .{wm.name}) catch "Quartz Compositor";
+        }
+    }
+    return "Quartz Compositor";
 }

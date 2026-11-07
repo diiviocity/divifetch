@@ -1,0 +1,4 @@
+;; memory module — /proc/meminfo's used / total pair, with a rebuilt estimate for old kernels.
+(module
+	:language "v"
+	:fn "preset")

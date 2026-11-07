@@ -1,0 +1,4 @@
+;; shell module — walks up the process tree to the nearest shell, falls back to $SHELL, appends its version.
+(module
+	:language "v"
+	:fn "preset")

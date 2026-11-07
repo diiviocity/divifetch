@@ -1,0 +1,5 @@
+;; command module — runs :arg :cmd and answers its whole stdout, trailing newlines stripped.
+(module
+	:language "v"
+	:fn "preset"
+	:arg :cmd)

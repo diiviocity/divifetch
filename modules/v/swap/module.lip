@@ -1,0 +1,4 @@
+;; swap module — SwapTotal/SwapFree from /proc/meminfo, the memory module's presentation; no swap stays '?'.
+(module
+	:language "v"
+	:fn "preset")

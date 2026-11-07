@@ -1,0 +1,4 @@
+;; distro module — runtime V preset for the generated fetch.
+(module
+	:language "v"
+	:fn "preset")

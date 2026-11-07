@@ -13,6 +13,12 @@ pub fn preset() []const u8 {
         const f = @import("../freebsd.zig");
         return f.unameField(.release, &value_buf) orelse "?";
     }
+    if (@import("builtin").os.tag == .macos) {
+        // the darwin release ("24.1.0"); the os module carries the
+        // product version.
+        const m = @import("../macos.zig");
+        return m.unameField(.release, &value_buf) orelse "?";
+    }
     const uts = std.posix.uname(); // lives on this function's stack
     const buf = uts.release; // [64:0]u8: NUL sentinel guaranteed
     const n = std.mem.findScalar(u8, &buf, 0) orelse buf.len;

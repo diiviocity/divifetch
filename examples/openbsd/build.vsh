@@ -99,7 +99,7 @@ ctx.add_flow(
 		}
 		// build-time entries bake here once: headgen runs the zig, c, cpp
 		// and rust ones, the v_bakes steps run the V ones, and their
-		// output lands in the bake file run.zig imports.
+		// output lands in the bake file the fetch imports.
 		mut bake_out := ''
 		if os.exists(headgen_file) {
 			mut argv := [zig, 'build-exe']
@@ -115,7 +115,7 @@ ctx.add_flow(
 				print(bake.output)
 				return error('headgen exited with ' + bake.exit_code.str())
 			}
-			bake_out += bake.output
+			bake_out = bake.output
 		}
 		os.write_file('.tmp/bake.zig', bake_out)!
 		mut argv := [zig, 'build-exe']
@@ -154,7 +154,7 @@ ctx.add_flow(
 	gives: [install_path]
 	flow: fn (self imp.Flow) ! {
 		os.mkdir_all(dest_dir)!
-		imp.system_args(['install', '-Dm755', target_exe, install_path])!
+		imp.system_args(['install', '-m755', target_exe, install_path])!
 	}
 )
 
