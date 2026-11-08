@@ -39,9 +39,6 @@ v install https://git.vorelabs.dev/vorelabs/blip.git
 git clone https://git.vorelabs.dev/vorelabs/divifetch.git
 cd divifetch
 
-# generate an example config file
-v run generator -C
-
 # generate the source code, build script and run it
 v run generator
 
