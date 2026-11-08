@@ -1,7 +1,7 @@
 // utils.v — pure helpers sitting between the parsers and the emitters:
 // Text escapes for the zig and V sources that get generated, the lip-side
 // unescape of what blip hands back, the terminal width of one line.
-// the divifetch-zig generator.
+// the divifetch generator.
 module main
 
 import os

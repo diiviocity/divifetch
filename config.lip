@@ -1,0 +1,72 @@
+; divifetch example config.lip
+
+; the config is a blip program: any blip will expression work,
+; and evaluated values feed every spelling.
+
+; strings know the blip escapes (n, t, r, 0, the backslash and the quote)
+; plus two the generator adds for ANSI: \e is the escape byte and \xHH one
+; hex byte - \033 and \0x1B do NOT work here.
+
+; helper that generates a pretty mount entry
+; (mount_p "/") -> Mount (/): ... / ... GiB
+(define (mount_p path)
+	(mount :key (string-append "Mount (" path ")")
+	       :args [path]))
+
+
+; helper that generates an RGB colour escape code
+; (colour 0 100 200) -> \e[38;2;0;100;200m
+(define (colour r g b)
+	(string-append bold "\e[38;2;"
+	               (number->string r) ";"
+	               (number->string g) ";"
+	               (number->string b) "m"))
+
+; preset escape codes
+(define reset "\e[0m") ; resets the colours
+(define bold "\e[1m")  ; makse text bold
+
+; the colour palette
+(define pal1 (colour 160 160 160)) ; grey
+(define pal2 (colour 0 133 255))   ; blue
+
+; setting default config values
+(config :art-padding 3
+        :art-file "ascii/cat.txt"
+        :art-prefix (string-append reset bold)
+        :art-suffix reset
+        :key-prefix pal2
+        :key-suffix (string-append reset ": ")
+        :languages [:v])
+
+; optional: if present - generate a -run variant that runs the following
+; command after fetch
+
+; (run :bin "zsh")
+
+(user :key "")
+(plain :value-prefix pal1
+       :value "---------")
+(distro :key "OS")
+(pid1 :key "pid1")
+(host)
+(kernel)
+(uptime)
+(packages)
+(shell)
+(wm)
+(theme)
+(terminal)
+(font)
+(cpu)
+(gpu)
+(memory)
+(monitor)
+(mount_p "/")
+(temp :key "Temperature")
+(battery)
+
+(break)
+
+(colors_bright)
+(colors_normal)

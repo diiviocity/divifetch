@@ -2,7 +2,7 @@
 // positional-then-named reading of a form, and the shared consts of the
 // grammar. the source config, the build conf and the module lips all sit
 // on top of this file.
-// the divifetch-zig generator.
+// the divifetch generator.
 module main
 
 import blip.vlib.blip.reader

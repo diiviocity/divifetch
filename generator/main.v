@@ -1,13 +1,13 @@
 // main.v — the generator entry point: the cli flags, the task wiring
-// (source, build, run, genconf) and the help. everything else lives at its
+// (source, build, run) and the help. everything else lives at its
 // own file: config_parser*.v read, generator.v writes, utils.v moves bits.
-// the divifetch-zig generator.
+// the divifetch generator.
 module main
 
 import flag
 import os
 
-const generator_version = 'divifetch-zig generator v1.0.0'
+const generator_version = 'divifetch generator v1.0.0'
 
 // ─── cli ──────────────────────────────────────────────────────────────────
 
@@ -24,8 +24,6 @@ mut:
 	out_build      string = 'build.vsh'        @[long: ob]
 	task_build_run bool                        @[short: R; long: run]
 	build_run_args string                      @[only: r]
-	task_genconf   bool                        @[short: C; long: genconf]
-	out_conf       string = 'config.lip'       @[long: oc]
 	out_headgen    string = '.tmp/headgen.zig' @[long: ohg]
 	out_bake       string = '.tmp/bake.zig'    @[long: oh]
 }
@@ -33,7 +31,7 @@ mut:
 // ─── main ─────────────────────────────────────────────────────────────────
 
 fn output_help() string {
-	return 'divifetch-zig generator
+	return 'divifetch generator
 
 builds run.zig from a config.lip and the module.lips it references
 
@@ -54,8 +52,6 @@ options:
     -R --run             execute the freshly generated build script
     -r <args>            arguments passed to the build script
     -ohg <file>          where the build-time bake program is written (default: headgen.zig)
-    -C --genconf         generate an example config file
-    -oc <file>           where the example config is written (default: config.lip)
 
 with no task, this runs source, build and run, like the C generator did.
 builds and runs also go standalone: v run build.vsh build
@@ -105,7 +101,7 @@ fn main() {
 		}
 		return
 	}
-	if !opt.task_source && !opt.task_genconf && !opt.task_build && !opt.task_build_run {
+	if !opt.task_source && !opt.task_build && !opt.task_build_run {
 		// no task: the C generator's default — source, then build, then run.
 		opt.task_source, opt.task_build, opt.task_build_run = true, true, true
 	}
@@ -134,13 +130,6 @@ fn main() {
 				}
 			}
 		}
-	}
-	if opt.task_genconf {
-		write_out(opt.out_conf, output_example_config()) or {
-			print_error('cannot write ${opt.out_conf}: ${err.msg()}')
-			exit(1)
-		}
-		println('generated the example config file: ${opt.out_conf}')
 	}
 	if opt.task_source {
 		if backend_of(cfg) == 'v' {

@@ -11,7 +11,7 @@ const fixture_dir = os.abs_path(os.dir(@FILE) + '/..')
 const tree_snippet = '(kernel)\n(shell)\n(packages :build-time yes)\n(colors-normal)\n(break)\n'
 
 fn collected_tree() !Config {
-	log := '/tmp/opencode/lib__generator_test.lip'
+	log := '/tmp/lib_generator_test.lip'
 	os.write_file(log, tree_snippet)!
 	defer {
 		os.rm(log) or {}
@@ -226,7 +226,7 @@ fn test_output_source_without_environ() {
 }
 
 fn collected(snippet string) !Config {
-	log := '/tmp/opencode/lib__generator_test.lip'
+	log := '/tmp/lib__generator_test.lip'
 	os.write_file(log, snippet)!
 	defer { os.rm(log) or {} }
 	os.chdir(fixture_dir)!
@@ -276,7 +276,7 @@ fn test_build_art_lines_reads_and_rides() {
 }
 
 fn test_build_art_lines_pads_to_the_configured_width() {
-	fn_art := '/tmp/opencode/lib__art_test.txt'
+	fn_art := '/tmp/lib__art_test.txt'
 	defer { os.rm(fn_art) or {} }
 	os.write_file(fn_art, 'ab\nabc\n')!
 	mut props := Props{}
@@ -291,7 +291,7 @@ fn test_build_art_lines_pads_to_the_configured_width() {
 }
 
 fn test_build_art_lines_gains_blank_lines_for_more_entries() {
-	fn_art := '/tmp/opencode/lib__art_test2.txt'
+	fn_art := '/tmp/lib__art_test2.txt'
 	defer { os.rm(fn_art) or {} }
 	os.write_file(fn_art, 'a\n')!
 	mut props := Props{}
@@ -312,7 +312,7 @@ fn test_build_art_lines_omits_the_column_without_a_file() {
 
 fn test_build_art_lines_errors_on_a_missing_file() {
 	mut props := Props{}
-	props.art_file = '/tmp/opencode/no_such_art_file.txt'
+	props.art_file = '/tmp/no_such_art_file.txt'
 	build_art_lines(props, 1) or {
 		assert err.msg().contains('cannot read art file')
 		return
@@ -322,7 +322,7 @@ fn test_build_art_lines_errors_on_a_missing_file() {
 
 fn test_output_buildfile_consts() {
 	os.chdir(fixture_dir)!
-	defer { os.chdir('/tmp/opencode') or {} }
+	defer { os.chdir('/tmp') or {} }
 	mut conf := BuildConf{}
 	conf.target = 'myfetch'
 	conf.zig = 'myzig'
@@ -633,7 +633,7 @@ fn test_parse_build_conf_defaults_without_a_file() {
 }
 
 fn test_parse_build_conf_reads_every_field() {
-	conf_path := '/tmp/opencode/build_lip.conf'
+	conf_path := '/tmp/build_lip.conf'
 	os.write_file(conf_path, r'(build :exec "other"
 	:zig "myzig"
 	:flags "-fstrip"
@@ -661,7 +661,7 @@ fn test_parse_build_conf_reads_every_field() {
 }
 
 fn test_parse_build_conf_unknown_key_stops() {
-	conf_path := '/tmp/opencode/build_bad.conf'
+	conf_path := '/tmp/build_bad.conf'
 	os.write_file(conf_path, '(build :zap "x")')!
 	defer {
 		os.rm(conf_path) or {}
@@ -718,22 +718,6 @@ fn test_v_buildfile_writes_the_conf_flags_into_the_argv() {
 	text = output_buildfile(plain, build_regen_args(build_opts()), &cfg, '.tmp/vfetch/run.v', '.tmp/vfetch/bake.v', '.tmp/vfetch-run/run-run.v') or { panic(err.msg()) }
 	assert !text.contains("argv << ['-Doptimize=ReleaseFast']")
 	assert text.contains("imp.system_args(['v', '-new-compiler', '-prod', '-freestanding', '-gc', 'none', '-o', target_exe, v_src_dir])")
-}
-
-fn test_output_example_config_holds_the_shapes() {
-	example := output_example_config()
-	// the template mirrors the repo's own config: blip defines, the
-	// mount_p function, the fetch's chained session comment, and the
-	// kinds a fresh checkout carries.
-	assert example.contains('(config :art-file "ascii/cat.txt"')
-	assert example.contains(':key-prefix dark')
-	assert example.contains('(define dark "')
-	assert example.contains('(define (mount_p path)')
-	assert example.contains('(mount_p "/")')
-	assert example.contains(';(run :bin "zsh")')
-	assert example.contains('(colors_bright)') && example.contains('(colors_normal)')
-	assert example.contains('(break)')
-	assert !example.contains('generator/main.v')
 }
 
 fn test_colors_keys_are_eight_blocks() {
@@ -827,7 +811,7 @@ fn test_output_source_picks_one_at_random_across_sources() {
 fn test_output_source_executes_the_conf_entry() {
 	os.chdir(fixture_dir)!
 	one := collected('(kernel)')!
-	two_log := '/tmp/opencode/lib__gen_exec_test.lip'
+	two_log := '/tmp/lib__gen_exec_test.lip'
 	os.write_file(two_log, '(config :execute "cmatrix | head -40")\n(uptime)\n')!
 	defer { os.rm(two_log) or {} }
 	two := collect_config([two_log])!

@@ -1,7 +1,7 @@
 // config_parser_source.v — the source-config side: the (config...) form,
 // the entries, the module lips they reference and the zig signatures they
 // cross-check, and the collector that reads every config file in order.
-// the divifetch-zig generator.
+// the divifetch generator.
 module main
 
 import blip.vlib.blip.reader

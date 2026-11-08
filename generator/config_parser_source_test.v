@@ -13,7 +13,7 @@ const fixture_dir = os.abs_path(os.dir(@FILE) + '/..')
 // collected writes a snippet to disk and runs the collector over it, so
 // every test reads its forms exactly the way the real config reads.
 fn collected(snippet string) !Config {
-	log := '/tmp/opencode/lib__source_test.lip'
+	log := '/tmp/lib__source_test.lip'
 	os.write_file(log, snippet)!
 	defer {
 		os.rm(log) or {}

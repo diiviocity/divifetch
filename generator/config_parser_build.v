@@ -1,7 +1,7 @@
 // config_parser_build.v — the build.conf side: the (build...) form and
 // its fields, as far as a zig build needs them. a missing file means
 // defaults; unknown keys stop the generator.
-// the divifetch-zig generator.
+// the divifetch generator.
 module main
 
 import blip.vlib.blip.reader

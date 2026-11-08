@@ -1,4 +1,4 @@
-// hello_world_v module — a V sample for divifetch-zig.
+// hello_world_v module — a V sample for divifetch.
 //
 // a V module runs once, at build time: the build script invokes this file
 // with the entry's :args and its stdout bakes as the value, the way the C

@@ -6,7 +6,7 @@
 // blip feature work natively — evaluated values feed the spellings — and
 // entries keep landing through the same parse_entry path they always did,
 // riding synthesized forms built from the arena's own leaves.
-// the divifetch-zig generator.
+// the divifetch generator.
 module main
 
 import blip.vlib.blip
